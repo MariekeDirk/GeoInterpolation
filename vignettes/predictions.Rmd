@@ -1,0 +1,166 @@
+---
+title: "predictions"
+author: "Marieke"
+date: "December 5, 2016"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,message=FALSE)
+```
+
+```{r libraries}
+library(data.table)
+library(lubridate)
+library(raster)
+library(rgdal)
+library(foreach)
+library(doParallel)
+```
+
+```{r}
+modelsdir<-"/nobackup/users/dirksen/Temperature/Temperature/Data/MLmodels/"
+grids<-list.files("/nobackup/users/dirksen/Temperature/Temperature/Data/HARMONIE/",full.names = TRUE)
+savedir<-"/nobackup/users/dirksen/Temperature/Temperature/Data/Predictions/"
+```
+## Model
+
+```{r loading models}
+lm <- readRDS(paste0(modelsdir,"lm.rds"))
+```
+
+## Prediction
+
+```{r prediction}
+st<-stack(grids[1])
+names(st)<-"HA38"
+st$day<-yday(as.Date("1995-01-01"))
+
+st$lm<-raster::predict(model=lm,object=st)
+st<-dropLayer(st,2)
+plot(st)
+```
+
+```{r parallel}
+# cl<-makeCluster(6)
+# registerDoParallel(cl)
+```
+
+```{r calculations}
+setwd("/nobackup/users/dirksen/Temperature/Temperature/Data/HARMONIE/")
+HARM38.list<-list.files("/nobackup/users/dirksen/Temperature/Temperature/Data/HARMONIE/",pattern=".grd")
+HARM38.list.time<-gsub("file","",HARM38.list)
+HARM38.list.time<-gsub("T123000Z.grd","",HARM38.list.time)
+HARM38.list.time<-as.POSIXct(HARM38.list.time,format="%Y%m%d")
+
+# ptime<-system.time({
+#   foreach(i=1:length(HARM38.list.time),.packages=c('raster','lubridate')) %dopar% {
+#   savefile <- paste0(savedir,paste0(as.Date(HARM38.list.time[i])),".rds")
+#   st<-stack(grids[i])
+#   names(st)<-"HA38"
+#   st$day<-yday(as.Date(HARM38.list.time[i]))
+#   st$lm<-raster::predict(model=lm,object=st)
+#   st<-dropLayer(st,2)
+#   writeRaster(st,savefile,overwrite=TRUE)
+#   }
+# })[3]
+# ptime
+# 
+# 
+# stopCluster(cl)
+
+```
+
+```{r results}
+library(rts)
+out <- list.files("/nobackup/users/dirksen/Temperature/Temperature/Data/Predictions/",
+                pattern=".grd",
+                full.names = TRUE)
+st <- stack(out,varname="HA38")
+stts <- rts(st,HARM38.list.time)
+```
+
+```{r stack apply}
+#trend analysis: http://greenbrown.r-forge.r-project.org/man/TrendRaster.html
+#example working with calc, zApply and stackApply: https://stat.ethz.ch/pipermail/r-sig-geo/2016-June/024508.html
+
+#climatology: mean values and standard deviation
+alldays.mean <- stackApply(st,1,fun=mean)
+names(alldays.mean)<-"mean"
+alldays.sd <- stackApply(st,1,fun=sd)
+names(alldays.sd)<-"sd"
+
+# writeRaster(alldays.mean,filename = "Data/Results/alldays_mean.grd",overwrite=TRUE)
+# writeRaster(alldays.sd,filename="Data/Results/alldays_sd.grd",overwrite=TRUE)
+
+#monthly climatology
+indices<-format(HARM38.list.time,format="%m")
+indices<-as.numeric(indices)
+
+month.mean <- stackApply(st,indices,fun=mean) # Calculating the mean for each month
+month.sd <- stackApply(st,indices,fun=sd) # Calculating the sd for each month
+
+names(month.mean)<-c("Jan_mean","Feb_mean",
+                     "March_mean","Apr_mean",
+                     "May_mean","June_mean",
+                     "July_mean","Aug_mean",
+                     "Sept_mean","Okt_mean",
+                     "Nov_mean","Dec_mean")
+names(month.sd)<-c("Jan_sd","Feb_sd",
+                   "March_sd","Apr_sd",
+                   "May_sd","June_sd",
+                   "July_sd","Aug_sd",
+                   "Sept_sd","Okt_sd",
+                   "Nov_sd","Dec_sd")
+plot(month.mean-273.15)
+
+writeRaster(month.mean,filename = "Data/Results/month_mean.grd",overwrite=TRUE)
+writeRaster(month.sd,filename="Data/Results/month_sd.grd",overwrite=TRUE)
+
+#mean for all quarters
+yq<-as.yearqtr(HARM38.list.time)
+indices<-format(yq,format="%q")
+indices<-as.numeric(indices)
+
+quarter.mean <- stackApply(st,indices,fun=mean) # Calculating the mean for each quarter
+quarter.sd <- stackApply(st,indices,fun=sd) # Calculating the sd for each quarter
+
+names(quarter.mean)<-c("Q1_mean","Q2_mean","Q3_mean","Q4_mean")
+names(quarter.sd)<-c("Q1_sd","Q2_sd","Q3_sd","Q4_sd")
+
+plot(quarter.sd)
+
+writeRaster(quarter.mean,filename = "Data/Results/quarter_mean.grd",overwrite=TRUE)
+writeRaster(quarter.sd,filename="Data/Results/quarter_sd.grd",overwrite=TRUE)
+
+#mean for all year days
+indices<-yday(HARM38.list.time)
+indices<-as.numeric(indices)
+
+# yearday.mean <- stackApply(st,indices,fun=mean) # Calculating the mean for each yearday
+# yearday.sd <- stackApply(st,indices,fun=sd) # Calculating the sd for each yearday
+
+# names(yearday.mean)<-as.character(seq(1:366))
+# names(yearday.sd)<-as.character(seq(1:366))
+
+# plot(yearday.sd[[1:5]])
+
+# writeRaster(yearday.mean,filename = "Data/Results/yearday_mean.grd",overwrite=TRUE)
+# writeRaster(yearday.sd,filename="/nobackup/users/dirksen/Temperature/Temperature/Data/Results/yearday_sd.grd",overwrite=TRUE)
+
+# # quarters
+# ends<-endpoints(stts,on='quarters')
+# out<-period.apply(stts,ends,mean)
+# 
+# ends2<-endpoints(out,on='months',20)
+# out2<-period.apply(stts,ends2,mean)
+# 
+# # years
+# ends3<-endpoints(stts,'years')
+# out2<-period.apply(stts,ends3,mean)
+# 
+# # 20 years
+# ends3<-endpoints(stts,'years',20)
+# out2<-period.apply(stts,ends3,mean)
+```
+

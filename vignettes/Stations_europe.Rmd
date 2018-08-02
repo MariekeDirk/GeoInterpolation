@@ -1,0 +1,200 @@
+---
+title: "Stations Europe"
+author: "Marieke Dirksen"
+date: "August 29, 2017"
+output: 
+   html_document:
+            pandoc_args:  [
+      "--title-prefix", "Foo",
+      "--id-prefix", "Bar",
+      "--number-sections"
+      ]
+            theme: yeti
+            highlight: tango
+            fig_caption: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Loading the data
+
+```{r stationdata, echo=FALSE,message=FALSE}
+library(raster)
+library(data.table)
+library(leaflet)
+library(rgdal)
+library(maptools)
+#library(spatstat) #problems with deldir installation, .rdb corrupt...
+library(ggplot2)
+library(ggmap)
+library(GeoInterpolation)
+
+subset_europe<-fread("/nobackup/users/dirksen/data/radiation_europe/qq_synoptical_stations_Jan2016.txt",header=TRUE)
+
+stations_europe<-fread("/nobackup/users/dirksen/data/radiation_europe/qq_synoptical_stations_2016.txt",header=FALSE)
+names(stations_europe)<-names(subset_europe)
+
+cfg <- config::get(file = "/nobackup/users/dirksen/Temperature/GeoInterpolation/config/config.yml")
+stations_europe<-data.frame(stations_europe)
+```
+
+# Visualization of the points 
+
+## leaflet
+
+```{r leaflet}
+leafletplot<-stations_europe[!duplicated(stations_europe$syn_id),]
+
+# m<-leaflet(data=leafletplot) %>% addTiles() %>% addMarkers(data=stations_europe,lng=~lon,lat=~lat,label=~as.character(syn_id))
+# m
+```
+
+## ggplot2
+
+```{r ggplot2}
+
+map<-get_map(location="Europe",zoom=4)
+ggmap(map)+geom_point(aes(x=lon,y=lat),data=leafletplot)
+
+```
+
+# Spatial pattern of the stations
+
+* [online example](http://www.bias-project.org.uk/ASDARcourse/unit5_slides.pdf)
+
+```{r spatialdensity}
+
+
+spdf<-leafletplot
+coordinates(spdf)<-~lon+lat
+sp<-as(spdf,"SpatialPoints")
+
+sp_ppp<-as(sp,"ppp")
+bb <- boundingbox(sp_ppp)
+ch <- convexhull.xy(sp_ppp)
+rr <- ripras(sp_ppp)
+
+sp_rr<- ppp(sp_ppp$x,sp_ppp$y,window=rr)
+
+plot(sp_rr)
+
+qr<-quadratcount(sp_ppp)
+plot(qr)
+
+
+
+spatial_density<-function(sigma){
+crds<-list("x"=seq(min(sp_rr$x),max(sp_rr$x),by=0.1),"y"=seq(min(sp_rr$y),max(sp_rr$y),by=0.1))
+k25<-density(sp_rr,sigma=sigma,xy=crds)
+sgdf<-as(k25,"SpatialGridDataFrame")
+r<-raster(sgdf)
+crs(r)<-cfg$WGS84
+return(r)
+}
+
+r25<-spatial_density(0.25)
+r50<-spatial_density(0.50)
+r75<-spatial_density(0.75)
+r100<-spatial_density(1.00)
+
+st<-stack(r25,r50,r75,r100)
+names(st)<-c("sigma25","sigma50","sigma75","sigma100")
+spplot(st,main="Kernel density estimation for different bandwidths")
+
+```
+
+## Spatial point patterns
+
+Two different simulations:
+
+* Complete spatial randomness, using G-function
+* Distance from point to nearest event, using F-function
+
+The output can be interpreted as:
+
+* If the actual line is within the bounds of the theoretical line then the pattern is random
+* If the line is below the pattern is clustered
+* If the line is above the pattern is organized 
+
+```{r spatialrandomness}
+ex<-expression(runifpoint(n=sp_rr$n,win=rr))
+res<-envelope(sp_rr,Kest,nsim=99,simulate=ex,verbose = FALSE,saveall=TRUE)
+res
+plot(res,main="CSR simulation") #clustered pattern
+
+fes<-envelope(sp_rr,Fest,nsim=99,simulate=ex,verbose = FALSE,saveall=TRUE)
+fes
+plot(fes) # clustered pattern
+```
+
+# Interpolation
+
+```{r interpolation, echo=FALSE,message=FALSE}
+stations_europe$syn_date<-as.Date(stations_europe$syn_date)
+stations_europe<-data.table(stations_europe)
+
+# calculate the mean value for the days in Januari for all stations using the data.table package
+# jan.meanwgs<-stations_europe[,.(mean=mean(qq)),by=.(syn_id,lat,lon)]
+# coordinates(jan.meanwgs)<-~lon+lat
+# proj4string(jan.meanwgs)<-cfg$WGS84
+# jan.mean<-spTransform(jan.meanwgs,cfg$pro)
+# jan.mean<-as(jan.mean,"SpatialPointsDataFrame")
+
+#NOTE: ONLY THE FIRST DAY OF THIS DATASET HAS INFORMATION!
+exampleday.wgs<-stations_europe[which(stations_europe$syn_date==unique(stations_europe$syn_date)[30]),]
+exampleday.wgs$qq<-exampleday.wgs$qq/1000
+coordinates(exampleday.wgs)<-~lon+lat
+proj4string(exampleday.wgs)<-cfg$WGS84
+exampleday<-spTransform(exampleday.wgs,cfg$pro)
+exampleday<-as(exampleday,"SpatialPointsDataFrame")
+
+# grid for europe
+r<-raster()
+extent(r)<-extent(exampleday.wgs)
+res(r)<-0.25
+values(r)<-1
+crs(r)<-cfg$WGS84
+r<-projectRaster(r,crs=cfg$pro)
+sdf<-as(r,"SpatialGridDataFrame")
+
+
+#IDW
+# europe_int1<-interpolation_idw(groundstations = exampleday,
+#                   variable = "qq",
+#                   distshore.grd =  sdf
+# )
+# 
+# r_int1<-raster(europe_int1$spatial)
+# r_int1<-projectRaster(r_int1,crs=cfg$WGS84)
+# pal <- colorNumeric(c("#0C2C84", "#41B6C4", "#FFFFCC"), values(r_int1),
+#   na.color = "transparent")
+# 
+# m1<-leaflet() %>% addTiles() %>% addRasterImage(r_int1,colors=pal,opacity=0.6) %>% addLegend(pal = pal, values = values(r_int1),title="Radiation [W/m2]") 
+# 
+# m1
+
+# Some notes on the kriging interpolation:
+# it doesn't work with WGS84 projection!
+europe_int2<-interpolation_ordinarykriging(groundstations = exampleday,
+                  variable = "qq",
+                  grid_drift = sdf
+)
+```
+
+```{r vis}
+r_int2<-raster(europe_int2$spatial)
+r_int2<-projectRaster(r_int2,crs=cfg$WGS84)
+pal <- colorNumeric(c("#0C2C84", "#41B6C4", "#FFFFCC"), values(r_int2),
+  na.color = "transparent")
+
+exampleday.df<-data.frame(exampleday.wgs)
+
+pal2 <- colorNumeric(c("#0C2C84", "#41B6C4", "#FFFFCC"), exampleday.df$qq,
+  na.color = "transparent")
+
+m2<-leaflet(data=exampleday.df) %>% addTiles() %>% addRasterImage(r_int2,colors=pal,opacity=0.6) %>% addLegend(pal = pal, values = values(r_int2),title="Radiation [KJ/m2]")  #%>% addCircleMarkers(lng=~lon,lat=~lat,label=~as.character(qq),fillColor=pal2,color=pal2)
+
+m2
+```

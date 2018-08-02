@@ -1,0 +1,108 @@
+---
+title: "Model Building"
+author: "Marieke"
+date: "December, 2016"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,message=FALSE)
+```
+
+```{r library}
+library(data.table)
+library(lubridate)
+library(mgcv)
+library(adehabitat)
+library(automap)
+library(caret)
+library(doParallel)
+library(kernlab)
+library(reshape)
+library(raster)
+library(rgdal)
+library(SDMTools)
+pro=CRS("+init=epsg:28992")
+save_dir<-"/nobackup/users/dirksen/Temperature/Temperature/Data/MLmodels/"
+```
+
+
+```{r parallel}
+cl<-makeCluster(6)
+registerDoParallel(cl)
+```
+
+## Observations and model input
+```{r loading}
+obs.df<-fread("/nobackup/users/dirksen/Temperature/Temperature/Rdata/HA38_over_obs.csv",sep=",")
+names(obs.df)<-c("Datum","Stn","Locatie","x","y","Tg","HA38","Diff")
+
+obs.df$Tg<-obs.df$Tg + 273.15
+obs.df$HA38 <- obs.df$HA38 + 273.15
+obs.df$Diff <- obs.df$Diff + 273.15
+
+obs.df$IT_DATETIME <- as.Date(obs.df$Datum)
+obs.df$day <- yday(obs.df$IT_DATETIME)
+
+setkey(obs.df, day)
+obs.df <- obs.df[complete.cases(obs.df),]
+```
+
+## Training and test set
+```{r test/train}
+set.seed(999)
+trainIndex<-createDataPartition(obs.df$Tg,p=0.80,list=FALSE)
+train<-obs.df[trainIndex,]
+setkey(train, day)
+test<-obs.df[-trainIndex,]  
+setkey(test, day)
+```
+
+
+```{r train control}
+set.seed(123)
+seeds <- vector(mode = "list", length = 11)#length is = (n_repeats*nresampling)+1
+for(i in 1:30) seeds[[i]] <- sample.int(n=1000, 30) #(30 is the number of tuning parameter, mtry for rf, here equal to ncol(iris)-2)
+seeds[[31]]<-sample.int(1000, 1)
+
+
+indx <- createFolds(train , returnTrain = TRUE)
+# control<-trainControl(method="repeatedcv",repeats=3,index=createFolds(obs.df$Q),seeds=seeds) 
+control<-trainControl(method = "repeatedcv",
+                      repeats = 3,
+                      number = 10,
+                      index = train,
+                      seeds = seeds) 
+length <- 15 #for the tuneLength of the models
+
+controlObject <- trainControl(method = "repeatedcv",
+                              repeats = 3,
+                              number = 10,
+                              index = createFolds(train$Tg),
+                              seeds = seeds)
+```
+
+## The model
+```{r}
+m1.lm <- caret::train(Tg ~ HA38 + day,
+                      data = train,
+                      method = "lm",
+                      preProcess = c("zv","center","scale","BoxCox"),
+                      tuneLength = length,
+                      trControl = controlObject)
+saveRDS(m1.lm,file=paste0(save_dir,"lm.rds"))
+```
+
+## Prediction Test
+```{r predict}
+lm.predict        <- raster::predict(m1.lm, newdata = test)
+lm.diff<-lm.predict-test$Tg
+plot.new()
+par(mfrow=c(1,2))
+mtext("lm", outer=TRUE, cex = 1.5)
+plot(test$Tg,lm.predict,type="p",col="blue",pch=20,xlab="observed",ylab="predicted")
+abline(0,1)
+plot(test$Tg,lm.diff,type="p",col="blue",pch=20,xlab="observed",ylab="difference")
+abline(h = c(5,2,-2,-5), v = -2:3, col = "lightgray", lty = 3)
+abline(0,0)
+```

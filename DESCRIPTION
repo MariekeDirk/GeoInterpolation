@@ -1,0 +1,35 @@
+Package: GeoInterpolation
+Type: Package
+Title: Temperature Interpolation methods 
+Version: 1.0
+Date: 2017-07-13
+Author: Marieke Dirksen
+Maintainer: <marieke.dirksen@knmi.nl>
+Description: Interpolation techniques for spatial data. Interpolations inculde: Kriging, inverse distance, thin plate spline. 
+             As validation cross validation is included.
+License: AGPL-3
+Imports: automap,
+         caret,
+         data.table,
+         fields,
+         grDevices,
+         grid,
+         gstat,
+         kernlab,
+         lubridate,
+         methods,
+         ncdf4,
+         raster,
+         rasterVis,
+         rhdf5,
+         sp,
+         spam,
+         spatialEco,
+         utils
+Suggests: leaflet,
+          shiny,
+          knitr,
+          rmarkdown
+Depends: R (>= 2.10)
+RoxygenNote: 6.0.1
+VignetteBuilder: knitr

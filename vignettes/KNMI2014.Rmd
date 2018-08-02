@@ -1,0 +1,94 @@
+---
+title: "Klimaat scenarios KNMI 2014"
+author: "Marieke"
+date: "December, 2016"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,message=FALSE)
+```
+
+## Functions and libraries
+```{r}
+library(raster)
+library(data.table)
+files.dir <- "/nobackup/users/dirksen/KNMI2014/KNMI14_schetsboeken/"
+
+#knmi2014.files <- list.files(path=files.dir,pattern="tg",full.names=TRUE)
+klimaatKNMI <- function(filetxt,varname){
+  filetxt<-t(filetxt)
+  filetxt<-data.table(filetxt,keep.rownames = TRUE)
+  filetxt<-drop(filetxt[2:26,])
+  names(filetxt)<-c("stn","RDx","RDy","lat","lon",varname)
+  return(filetxt)
+}
+```
+
+## Reading the data
+```{r}
+tg<-fread(paste0(files.dir,"klimaat_KNMI14____ref__tg.av____annual_19810101-20101231_v1.0.txt"),header=TRUE,sep=" ",
+          colClasses=rep("character",26))
+tg.varname <- "Tg"
+
+tn<-fread(paste0(files.dir,"klimaat_KNMI14____ref__tn.av____annual_19810101-20101231_v1.0.txt"),header=TRUE,sep=" ",
+          colClasses=rep("character",26))
+tn.varname <- "Tn"
+
+tx<-fread(paste0(files.dir,"klimaat_KNMI14____ref__tx.av____annual_19810101-20101231_v1.0.txt"),header=TRUE,sep=" ",
+          colClasses=rep("character",26))
+tx.varname <- "Tx"
+
+Nwarm<-fread(paste0(files.dir,"klimaat_KNMI14____ref__N_warm___annual_19810101-20101231_v1.0.txt"),header=TRUE,sep=" ",
+             colClasses=rep("character",26))
+Nwarm.varname <- "Nwarm"
+
+Ntrop<-fread(paste0(files.dir,"klimaat_KNMI14____ref__N_trop___annual_19810101-20101231_v1.0.txt"),header=TRUE,sep=" ",
+             colClasses=rep("character",26))
+Ntrop.varname <- "Ntrop"
+
+Nvorst<-fread(paste0(files.dir,"klimaat_KNMI14____ref__N_vorst__annual_19810101-20101231_v1.0.txt"),header=TRUE,sep=" ",
+             colClasses=rep("character",26))
+Nvorst.varname <- "Nvorst"
+
+Nijs<-fread(paste0(files.dir,"klimaat_KNMI14____ref__N_ijs____annual_19810101-20101231_v1.0.txt"),header=TRUE,sep=" ",
+             colClasses=rep("character",26))
+Nijs.varname <- "Nijs"
+
+```
+
+## Merge all the data
+```{r}
+Tg <- klimaatKNMI(tg,tg.varname)
+Tn <- klimaatKNMI(tn,tn.varname)
+Tx <- klimaatKNMI(tx,tx.varname)
+Warm_days <- klimaatKNMI(Nwarm,Nwarm.varname)
+Vrost_days <-klimaatKNMI(Nvorst,Nvorst.varname)
+Trop_days <- klimaatKNMI(Ntrop,Ntrop.varname)
+Ijs_days <- klimaatKNMI(Nijs,Nijs.varname)
+
+list.of.data.frames<-list(Tg,Tn,Tx,Warm_days,Vrost_days,Trop_days,Ijs_days)
+
+out<-Reduce(function(x,y) merge(x,y,by=c("stn","RDx","RDy","lat","lon"),all=TRUE),list.of.data.frames)
+
+out<-data.frame(out)
+cols.num <- c("Tg","Tn","Tx","Nwarm","Nvorst","Ntrop","Nijs","RDx","RDy")
+out[cols.num] <- sapply(out[cols.num],as.numeric)
+
+out$lat <- out$RDx*1000
+out$lon <- out$RDy*1000
+```
+
+## Correlation between variables
+```{r}
+library(corrplot)
+outsubset<-subset(out,select=cols.num)
+M<-cor(outsubset)
+corrplot(M,method="circle")
+```
+
+## Other plotting routine
+```{r}
+plot(out$Tg,out$Nwarm,pch="o",col="red",xlab="number of warm days",ylab="mean temperature")
+plot(out$Tg,out$Nvorst,pch="o",col="blue",xlab="number of vrost days",ylab="mean temperature")
+```

@@ -1,0 +1,260 @@
+---
+title: "Temperature Interpolation"
+author: "Marieke Dirksen"
+date: "Aug, 2017"
+output: 
+   html_document:
+            pandoc_args:  [
+      "--title-prefix", "Foo",
+      "--id-prefix", "Bar",
+      "--number-sections"
+      ]
+            theme: yeti
+            highlight: tango
+            fig_caption: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, results = 'hide')
+```
+
+# Loading data
+
+Important variables and paths are stored in the config.yml file. The station data used for the interpolation are documented data-sets which are loaded into memory. 
+
+```{r,cache=TRUE,message=FALSE,echo=FALSE}
+require(raster)
+require(sp)
+library(rgdal)
+require(data.table)
+require(config)
+require(GeoInterpolation)
+library(caret)
+library(gstat)
+library(leaflet)
+library(htmltools)
+library(rmarkdown)
+library(rasterVis)
+
+cfg <- config::get(file = "/nobackup/users/dirksen/Temperature/GeoInterpolation/config/config.yml")
+
+#importing the datasets for the interpolation
+devtools::load_all()
+data("temperature_stationdata")
+data("solar_radiation")
+
+#check documentation 
+?temperature_stationdata
+?solar_radiation
+
+
+```
+
+## Subset data stations
+```{r KNMIstations}
+inputdata<-temperature_stationdata[which(temperature_stationdata$Datum==cfg$exampledatum),]
+
+
+
+
+coordinates(inputdata)<-~RDN_X+RDN_Y
+projection(inputdata)<-cfg$pro
+```
+
+```{r leaflet, , include=TRUE}
+# For the location a fancy leaflet plot can be made
+inputleaf<-spTransform(inputdata,cfg$WGS84)
+inputleaf<-data.frame(inputleaf)
+
+m<-leaflet(data=inputleaf) %>% addTiles() %>% addMarkers(lng=~RDN_X,lat=~RDN_Y,label=~htmlEscape(Locatie),labelOptions = labelOptions(noHide = T))
+
+m
+
+```
+
+## Subset data grids
+
+```{r HARMONIEdata}
+
+examplefile<-paste0("file",cfg$exampledatum,"T123000Z.grd")
+r.st <- stack(list.files(paste0(cfg$datapath,cfg$HARMONIEdata),pattern=examplefile,full.names = TRUE))
+proj4string(r.st)<-cfg$pro
+
+plot(r.st)
+
+maskbuffer<-raster(paste0(cfg$datapath,cfg$nlbuffer))
+proj4string(maskbuffer)<-cfg$pro
+maskbuffer<-as(maskbuffer,"SpatialGridDataFrame")
+plot(maskbuffer)
+
+svf1km<-stack(list.files(path=cfg$svf1km,pattern = ".grd",full.names = TRUE))
+names(svf1km)<-c("quantile 0.05","quantile 0.33","quantile 0.50","quantile 0.67","quantile 0.95")
+
+svf100m<-stack(list.files(path=cfg$svf100m,pattern = ".grd",full.names = TRUE))
+names(svf100m)<-c("quantile 0.05","quantile 0.15","quantile 0.33","quantile 0.50","quantile 0.67","quantile 0.95")
+
+
+
+theme_set(theme_bw())
+p<- gplot(svf1km) + geom_tile(aes(fill = value)) +
+          facet_wrap(~ variable) +
+          scale_fill_gradientn(colours = terrain.colors(100)) +
+          #scale_fill_gradient(low = 'red', high = 'green') +
+          coord_equal()
+p
+
+# ggsave(p,file="/usr/people/dirksen/Documents/Fotos/skyviewfactor/svf1km_quantiles.png")
+
+p<- gplot(svf100m[[2]]) + geom_tile(aes(fill = value)) +
+          facet_wrap(~ variable) +
+          scale_fill_gradientn(colours = terrain.colors(100)) +
+          #scale_fill_gradient(low = 'red', high = 'green') +
+          coord_equal()
+p
+
+# ggsave(p,file="/usr/people/dirksen/Documents/Fotos/skyviewfactor/svf100m_quantiles.png")
+
+distshore<-raster("/nobackup/users/dirksen/data/Temperature/KNMIstations/wn_distshore_001.asc")
+proj4string(distshore)<-cfg$pro
+
+distshore<-resample(distshore,r.st,method="ngb")
+r.combined<-stack(r.st,distshore)
+proj4string(r.combined)<-cfg$pro
+
+r.combined<-as(r.combined,"SpatialGridDataFrame")
+r.st <- as(r.st,"SpatialGridDataFrame")
+distshore<-as(distshore,"SpatialGridDataFrame")
+
+```
+
+# Principle components
+```{r pca}
+pca_harm<-readRDS(cfg$pca_harmonie)
+pca_siccs<-readRDS(cfg$pca_siccs)
+
+proj4string(pca_harm$map)<-cfg$pro
+proj4string(pca_siccs$map)<-cfg$pro
+
+spdf_pca_harm<-as(pca_harm$map,"SpatialGridDataFrame")
+spdf_pca_siccs<-as(pca_siccs$map,"SpatialGridDataFrame")
+```
+
+# Temperature interpolation 
+
+The following interpolation methods are included: 
+
+* inverse distance interpolation (IDW)
+* thin plate splines (TPS)
+* ordinary kriging (OK)
+* kriging with external drift (KED)
+* conditional gaussian simulations (option in KED, with standard nsim=4)
+
+Input for the interpolation methods:
+
+* groundstation data in spatial format
+* variable you want to interpolate
+* grid used either as drift or as mask, depending on the method
+* maximum distance, used for different interpolation methods
+* blocksize, also used for different interpolation methods
+* overlay method, how you want to compare the points with the grid (either over or extract function)
+* formula, used for kriging with drift
+* conditional simulation, optional, used for kriging with drift
+
+Output of the interpolations includes a list with the following objects:
+
+* spatial
+* cv
+* stations
+* statistical_summary_cv
+* optional: conditional gaussian simulations
+
+```{r temperature interpolation}
+
+out.idw<-interpolation_idw(groundstations = inputdata, 
+                           variable="Tn",
+                           distshore.grd = maskbuffer)
+out.tps<-interpolation_tps(groundstations = inputdata, 
+                           variable="Tn" ,
+                           distshore.grd = maskbuffer)
+out.ok<-interpolation_ordinarykriging(groundstations = inputdata,
+                                      variable="Tn",
+                                      grid_drift=maskbuffer)
+plot(out.ok$spatial)
+spplot(out.idw$spatial,1)
+spplot(out.tps$spatial,2)
+#
+```
+
+# Comparisson between PCA HARMONIE and 1 day as trend
+```{r pca vs daygrid}
+f<-formula(paste("Tint ~",names(spdf_pca_harm)))
+
+out.ked_pca<-interpolation_krigingdrift(groundstations = inputdata,
+                                    formula=f,
+                                    variable="Tn",
+                                    grid_drift=spdf_pca_harm,
+                                    method.overlay = 'extract',
+                                    conditional.sim=FALSE)
+
+f<-formula(paste("Tint ~",names(r.st)))
+
+out.ked_1day<-interpolation_krigingdrift(groundstations = inputdata,
+                                    formula=f,
+                                    variable="Tn",
+                                    grid_drift=r.st,
+                                    method.overlay = 'extract',
+                                    conditional.sim=FALSE)
+
+
+
+plot(out.ked_pca$spatial)
+plot(out.ked_1day$spatial)
+
+out.ked_pca$statistical_summary_cv
+out.ked_1day$statistical_summary_cv
+```
+
+
+
+# Other models
+
+```{r radiation interpolation}
+f<-formula("Tint ~ PC1 + PC2 + PC3 + PC4 + PC5")
+
+lin.mod<-linear_model_caret(groundstations = inputdata,
+                                    formula=f,
+                                    variable="Tn",
+                                    grid_prediction=spdf_pca_harm,
+                                    method.overlay = 'extract'
+                                    )
+
+
+```
+
+# Data preprocessing
+
+In some cases the data can be skewed, or you use multiple data-sets with different oders of magnitude...You might wan't to preprocesses you data. Below the raster data is preprocessed, predicted and replaced in the raster object. 
+
+```{r preprocess raster data}
+# we can also interpolate the radiation data using the distance to sea grid and HARMONIE grid as trend...
+
+#The raster data is preprocessed with the caret package, in this case using center, scale and boxcox functions
+r.test<-r.combined
+test<-preProcess(r.test@data,method=c("center","scale","BoxCox"))
+newdata<-predict(test,r.test@data)
+
+r.test@data<-newdata #replacing the data in the test raster with newdata
+
+f<-formula(paste("Tint ~",paste(names(r.test),collapse = " + ")))
+
+out.ked<-interpolation_krigingdrift(groundstations = radiation_data, 
+                           variable="Q",
+                           formula=f,
+                           grid_drift=r.test,
+                           method.overlay = 'extract')
+plot(out.ked$spatial)
+```
+
+
+
+

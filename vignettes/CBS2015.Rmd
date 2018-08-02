@@ -1,0 +1,164 @@
+---
+title: "CBS buurt 2015"
+author: "Marieke"
+date: "December 14, 2016"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,message=FALSE)
+```
+
+# Initialization
+## Loading required libraries
+For raster and spatialpolygon classes we need the raster and rgdal packages. The projection of the data is in the Dutch RD-coordinate system. 
+```{r initialization}
+library(raster)
+library(rgdal)
+.libPaths("/usr/people/dirksen/R-20160725/x86_64-redhat-linux-gnu-library/3.3/")
+library(lubridate)
+library(caret)
+library(doParallel)
+registerDoParallel(8)
+pro=CRS("+init=epsg:28992")
+```
+
+## Writing the required data to rasters
+We want to calculate the mean values for each polygon for a average year, warm year and cold year. Herefore we take:
+* 2012 average year
+* 2003 warm year
+* 1996 cold year
+
+```{r select year}
+# average<-stack(list.files("/nobackup/users/dirksen/Temperature/Temperature/Data/HARMONIE",pattern="file2012",full.names = TRUE))
+# warm<-stack(list.files("/nobackup/users/dirksen/Temperature/Temperature/Data/HARMONIE/",pattern="file2003",full.names = TRUE))
+# cold<-stack(list.files("/nobackup/users/dirksen/Temperature/Temperature/Data/HARMONIE/",pattern="file1996",full.names = TRUE))
+# 
+# proj4string(average)<-pro
+# proj4string(warm)<-pro
+# proj4string(cold)<-pro
+# 
+# writeRaster(average,"/nobackup/users/dirksen/Temperature/Temperature/Data/Results/average2012.grd")
+# writeRaster(warm,"/nobackup/users/dirksen/Temperature/Temperature/Data/Results/warm2003.grd")
+# writeRaster(cold,"/nobackup/users/dirksen/Temperature/Temperature/Data/Results/cold1996.grd")
+```
+
+```{r,eval=FALSE}
+
+years<-seq(1996,2014,by=1)
+
+
+foreach(i=1:length(years),.packages = c("raster","rgdal","lubridate")) %dopar% {
+year<-years[i]
+ptrn<-paste0("file",year)
+filename<-paste0("grid",year,".grd")
+
+r.st <- stack(list.files("/nobackup/users/dirksen/Temperature/Temperature/Data/HARMONIE",pattern=ptrn,full.names = TRUE))
+
+proj4string(r.st)<-pro
+
+writeRaster(r.st,paste0("/nobackup/users/dirksen/Temperature/Temperature/Data/Results/allyears/",filename),overwrite=TRUE)
+}
+```
+## Loading rasters
+In the yearday_mean.grd are the values averaged over the period 1995 up to 2013. 
+```{r}
+st<-stack("/nobackup/users/dirksen/Temperature/Temperature/Data/Results/yearday_mean.grd")
+proj4string(st)<-pro
+
+average<-stack("/nobackup/users/dirksen/Temperature/Temperature/Data/Results/average2012.grd")
+warm<-stack("/nobackup/users/dirksen/Temperature/Temperature/Data/Results/warm2003.grd")
+cold<-stack("/nobackup/users/dirksen/Temperature/Temperature/Data/Results/cold1996.grd")
+```
+
+## CBS
+First we read the unprojected data and look at the shapefile. 
+> Missing the .dbf extention!!!
+
+```{r cbs data}
+cbs2014<-readOGR(dsn="/nobackup/users/dirksen/Temperature/Temperature/Data/CSB2014",layer = "buurt_2014")
+cbs2014_pro <- spTransform(cbs2014,crs(st))
+
+summary(cbs2014)
+```
+
+The file yearday_mean contains the mean value for each day of the year averaged over the period 1995 until 2013 (366 layers). Here we use the complete cbs file from 2015. 
+```{r loadCBS}
+# cbs2015<-readOGR(dsn="/nobackup/users/dirksen/Temperature/Temperature/Data/CBS2015/",layer = "Buurt_CBS_2015_v1")
+# 
+# 
+# cbs2015_pro<-spTransform(cbs2015,crs(st))
+```
+
+# Big data analysis
+## Day mean for all years
+```{r meanallyears}
+st.ext<-extract(st,cbs2014_pro,
+                 fun=mean,nl=366,
+                 method='bilinear',
+                 sp=TRUE) #using this method the values from the 4 nearest cells are interpolated
+writeOGR(st.ext,dsn="/nobackup/users/dirksen/Temperature/Temperature/Data/st_extracted_CBS/",layer ="klimatologie_buurt1995tm2013_daymean", driver="ESRI Shapefile")
+
+library(doParallel)
+library(foreach)
+registerDoParallel(cores = 6)
+df.alldays <- foreach(f=iter(nlayers(st)),.combine="cbind",.packages=c("raster")) %dopar% {
+st.ext<-extract(st,cbs2014_pro,
+                fun=mean,nl=1,layer=f,
+                method='bilinear',
+                sp=FALSE) #using this method the values from the 4 nearest cells are interpolated
+}
+```
+
+## Daily temperature for 2012
+```{r average2012}
+average.ext<-extract(average,cbs2014_pro,
+                 fun=mean,nl=366,
+                 method='bilinear',
+                 sp=TRUE) #using this method the values from the 4 nearest cells are interpolated
+writeOGR(average.ext,dsn="/nobackup/users/dirksen/Temperature/Temperature/Data/st_extracted_CBS/",layer ="average_buurt2012", driver="ESRI Shapefile")
+```
+
+## Daily temperature for 2003
+```{r warm2003}
+warm.ext<-extract(warm,cbs2014_pro,
+                 fun=mean,nl=366,
+                 method='bilinear',
+                 sp=TRUE) #using this method the values from the 4 nearest cells are interpolated
+writeOGR(warm.ext,dsn="/nobackup/users/dirksen/Temperature/Temperature/Data/st_extracted_CBS/",layer ="warm_buurt2003", driver="ESRI Shapefile")
+```
+
+## Daily temperature for 1996
+```{r cold1996}
+cold.ext<-extract(cold,cbs2014_pro,
+                 fun=mean,nl=366,
+                 method='bilinear',
+                 sp=TRUE) #using this method the values from the 4 nearest cells are interpolated
+writeOGR(cold.ext,dsn="/nobackup/users/dirksen/Temperature/Temperature/Data/st_extracted_CBS/",layer ="cold_buurt2003", driver="ESRI Shapefile")
+```
+
+# A small test case for your code
+
+## Reading the HARMONIE stack
+Lets take an example with a single layer: the mean temperature in Kelvin from 1995 until 2013. The projection is added to the stack and set equal to the projection of the CBS shapefile. 
+```{r HARMONIE data}
+st<-stack("/nobackup/users/dirksen/Temperature/Temperature/Data/Results/alldays_mean.grd")
+proj4string(st)<-pro
+names(st)<-"Mean_Temperature_HARM"
+cbs2015_pro<-spTransform(cbs2015,crs(st))
+
+```
+
+## Extracting the values for each polygon
+Now the data is ready to be extracted. We want the mean of each polygon. The method is set to bilinear, using the 4 nearest grids. The default only uses the value of the grid falling with in the polygon. As a return we want the layer added to the shapefile and use sp=true. If you want a dataframe use sp=false. A new shapefile is generated with the command writeOGR. 
+```{r extracting values}
+time<-system.time(
+st.ext2<-extract(st,cbs2014_pro,fun=mean,method='bilinear',sp=TRUE)
+)
+print(time)
+
+writeOGR(st.ext2,dsn="/nobackup/users/dirksen/Temperature/Temperature/Data/st_extracted_CBS/",layer ="klimatologie_buurt1995tm2013", driver="ESRI Shapefile")
+
+out<-readOGR(dsn="/nobackup/users/dirksen/Temperature/Temperature/Data/st_extracted_CBS/",layer="klimatologie_buurt1995tm2013")
+```
+

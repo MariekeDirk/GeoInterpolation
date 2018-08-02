@@ -1,0 +1,55 @@
+---
+title: "CBS buurt 2014 shape files"
+author: "Marieke"
+date: "December 14, 2016"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,message=FALSE)
+```
+
+# Initialization
+## Loading required libraries
+For raster and spatialpolygon classes we need the raster and rgdal packages. The projection of the data is in the Dutch RD-coordinate system. 
+```{r initialization}
+library(raster)
+library(rgdal)
+.libPaths("/usr/people/dirksen/R-20160725/x86_64-redhat-linux-gnu-library/3.3/")
+library(lubridate)
+library(caret)
+library(ggplot2)
+library(plyr)
+library(doParallel)
+registerDoParallel(8)
+pro=CRS("+init=epsg:28992")
+```
+
+```{r}
+list.files("/nobackup/users/dirksen/CBS/")
+```
+```{r}
+cbs2014<-readOGR(dsn="/nobackup/users/dirksen/CBS/",layer="CBSvierkant500m201410")
+```
+
+## plotting routines from online
+* [general information](https://www.nceas.ucsb.edu/scicomp/usecases/ReadWriteESRIShapeFiles)
+* [ggplot2](https://github.com/tidyverse/ggplot2/wiki/plotting-polygon-shapefiles) 
+* [standard plotting](https://pakillo.github.io/R-GIS-tutorial/)
+* [comparable problem](http://stackoverflow.com/questions/20309883/filling-polygons-of-a-map-using-ggplot-in-r)
+```{r plotting}
+cbs2014[which(cbs2014@data$INW2000==-99998),]<-NA
+cbs2014@data$id = rownames(cbs2014@data)
+cbs2014.points = ggplot2:::fortify.SpatialPolygonsDataFrame(cbs2014,region="INW2000")
+cbs2014.df = join(cbs2014.points,cbs2014@data,by="id")
+# cbs2014.df[cbs2014.df <= 0,'id']<- NA
+
+ggplot(cbs2014.df) +
+  aes(long,lat,group=group) +
+  geom_polygon(aes(fill=INW2000)) +
+  # geom_path(color="red") +
+  labs(title="CBS Inwoners 2000") +
+  coord_equal() +
+  scale_colour_brewer()
+                               
+```

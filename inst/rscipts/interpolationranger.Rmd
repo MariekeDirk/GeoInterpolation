@@ -1,0 +1,210 @@
+---
+title: "Ranger Interpolation"
+author: "Marieke Dirksen"
+date: "February 21, 2018"
+output: 
+   html_document:
+            pandoc_args:  [
+      "--title-prefix", "Foo",
+      "--id-prefix", "Bar",
+      "--number-sections"
+      ]
+            theme: yeti
+            highlight: tango
+            fig_caption: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+
+```{r cars,echo=FALSE,include=FALSE,cache=TRUE}
+library(raster)
+library(sp)
+library(rgdal)
+library(randomForest)
+library(data.table)
+library(config)
+library(GeoInterpolation)
+library(dplyr) # join function
+library(caret)
+library(lubridate)
+library(GSIF)
+library(ranger)
+library(geoR)
+library(spatialEco)
+library(xgboost)
+
+cfg <- config::get(file = "/nobackup/users/dirksen/Temperature/GeoInterpolation/config/config.yml")
+
+#importing the datasets for the interpolation
+devtools::load_all()
+data("temperature_climate")
+data("coords_aws")
+
+temperature_climate<-temperature_climate[complete.cases(temperature_climate),]
+fname<-"/nobackup/users/dirksen/data/Temperature/KNMIstations/temperature_auxiliary_over.txt"
+
+data.aux.df<-fread(fname)
+data.aux.df$yday<-yday(data.aux.df$Datum)
+data.aux.df$originday<-as.numeric(as.POSIXct(data.aux.df$Datum))/(3600*24)
+data.aux.df<-data.frame(data.aux.df)
+data.aux.df<-subset(data.aux.df,select=c("STN","Datum","Tg","Height",
+"Distsea","Population","Albedo","Roughness",
+"Precipitation_monthly","NDVI","Radiation","yday","originday","RDN_X","RDN_Y"))
+
+fm<-as.formula("Tg ~ Height + Distsea + 
+               Population + Albedo + Roughness + 
+               Precipitation_monthly + NDVI + Radiation +
+               yday + originday")
+#fm<-as.formula("Tg ~ Height + Distsea + Population + Albedo + Radiation")
+data.aux.df<-data.aux.df[complete.cases(data.aux.df[,all.vars(fm)]),]
+
+
+data.aux.sp<-data.aux.df
+coordinates(data.aux.sp)<-~RDN_X+RDN_Y
+projection(data.aux.sp)<-cfg$pro
+
+domain<-read.asciigrid(paste0(cfg$datapath,cfg$nldistshore))
+crs(domain)<-cfg$pro
+domain.sp<-as(domain,"SpatialPixelsDataFrame")
+```
+
+# Ranger
+
+## Spatial distances
+Example of the spatial distances to all points. 
+
+```{r sp.dist, cache=TRUE}
+summary(data.aux.df)
+data.aux.buf<-data.aux.df[unique(data.aux.df$STN),]
+coordinates(data.aux.buf)<-~RDN_X+RDN_Y
+projection(data.aux.buf)<-cfg$pro
+grid.dist0<-GSIF::buffer.dist(data.aux.buf["Tg"],predictionDomain = domain.sp,as.factor(1:nrow(data.aux.buf)))
+# r<-stack(grid.dist0)
+# writeRaster(r,filename = "/nobackup/users/dirksen/data/auxcillary_NED/grid_buffer/grid_buffer.grd")
+spplot(grid.dist0)
+```
+
+## Model
+
+The model and predictions are based on this [link](https://github.com/thengl/GeoMLA#weighted-rfsp). The total uncertainty error of temperature measurements is estimated at 0.13. With the error the 'case.weights' are estimated. The yearly and long term trend, along with the albedo are found the most important variables for the model. 
+
+
+```{r tuning, include=FALSE,cache=TRUE}
+ov.lst<-list(data.aux.sp@data,over(data.aux.sp,grid.dist0))
+data.aux.df<-do.call(cbind,ov.lst)
+nms<-paste(names(data.aux.df)[14:length(names(data.aux.df))],collapse="+")
+
+fm.buffer<-as.formula(paste("Tg ~ Height + Distsea + Population + Albedo + Roughness + Precipitation_monthly + NDVI + Radiation + yday + originday +",nms))
+
+data.aux.df.sub<-data.aux.df[sample.int(size=5000,nrow(data.aux.df)),]
+
+library(tuneRanger)
+library(mlr)
+Tg.task<-makeRegrTask(data=data.aux.df.sub[,-1:-2],target="Tg") #get the best mtry value
+res = tuneRanger(Tg.task, num.trees = 1000, 
+                  num.threads = 6, iters = 70,parameters = list(replace = FALSE,
+                  respect.unordered.factors = TRUE)) # Problems with oder of the list, set to TRUE
+```
+
+```{r model,cache=TRUE}
+print(res)
+#tuneRF check https://www.rdocumentation.org/packages/randomForest/versions/4.6-12/topics/tuneRF 
+m.Tg<-ranger(fm.buffer,data.aux.df, 
+             num.trees=200, mtry=46,seed=1,
+             quantreg = TRUE, importance='impurity')
+#,case.weights=rep(1/(0.13),length(data.aux.df$STN))) #total uncertainty error of temperature measurements=0.13
+print(m.Tg)
+print(paste0("RMSE = ", round(sqrt(m.Tg$prediction.error),2)))
+
+varimp<-data.table(m.Tg$variable.importance)
+varimp$name<-names(m.Tg$variable.importance)
+varimp<-setorder(varimp,-V1)
+head(varimp,n=10)
+# varimp$nr<-seq(1,length(varimp$name),1)
+# ggplot(varimp,aes(V1,nr))+
+#   geom_point() + 
+#   geom_text(aes(label=name),hjust=-0.2,vjust=1) +
+#   xlab("variable importance") +
+#   ylab("ranking")
+```
+
+## Prediction
+
+The code below loads the data for a random day and predicts the temperature. 
+
+```{r prediction,cache=TRUE,include=FALSE,eval=TRUE}
+datum<-as.Date("2006-11-01")
+spdf_aux<-load_auxiliarydata(datum)
+names(spdf_aux)<-c("Height","Distsea",
+                   "Population","Albedo",
+                   "Roughness","Precipitation_monthly",
+                   "NDVI","Radiation","yday",
+                   "originday",names(data.aux.df)[14:length(names(data.aux.df))])
+p.Tg<-predict(m.Tg,spdf_aux@data,type="quantiles",quantiles=c(0.159,0.5,0.841)) #prediction
+
+spdf_aux@data<-do.call(cbind, list(spdf_aux@data,
+                                   data.frame(p.Tg$predictions[,2]),
+                                   data.frame((p.Tg$predictions[,3]-p.Tg$predictions[,1])/2))) # add the data
+gridded(spdf_aux)<-TRUE                   #spatialpixeldataframe
+st<-stack(spdf_aux)                       #convert to raster
+
+points<-data.aux.df[which(data.aux.df$Datum==datum),]
+r.median<-st[[length(names(spdf_aux))-1]]
+```
+
+```{r plotting}
+summary(points$Tg)
+summary(r.median)
+spplot(r.median,col.regions=terrain.colors(n=400))
+```
+
+```{r otherdate,cache=TRUE,include=FALSE,eval=TRUE}
+datum<-as.Date("2010-12-20")
+spdf_aux<-load_auxiliarydata(datum)
+names(spdf_aux)<-c("Height","Distsea",
+                   "Population","Albedo",
+                   "Roughness","Precipitation_monthly",
+                   "NDVI","Radiation","yday",
+                   "originday",names(data.aux.df)[14:length(names(data.aux.df))])
+
+p.Tg<-predict(m.Tg,spdf_aux@data,type="quantiles",quantiles=c(0.159,0.5,0.841)) #prediction
+
+spdf_aux@data<-do.call(cbind, list(spdf_aux@data,
+                                   data.frame(p.Tg$predictions[,2]),
+                                   data.frame((p.Tg$predictions[,3]-p.Tg$predictions[,1])/2))) # add the data
+gridded(spdf_aux)<-TRUE                   #spatialpixeldataframe
+st<-stack(spdf_aux)                       #convert to raster
+
+points<-data.aux.df[which(data.aux.df$Datum==datum),]
+r.median<-st[[length(names(spdf_aux))-1]]
+
+```
+
+
+```{r plotting2}
+summary(points$Tg)
+summary(r.median)
+spplot(r.median,col.regions=terrain.colors(n=400))
+```
+
+# xgboost
+
+A test on a small subset...Working code but still poor results...
+
+## Model
+```{r xgmodel}
+fitControl <- caret::trainControl(method = "repeatedcv", number = 10, repeats = 2, search = "random")
+data.aux.df.sub<-data.aux.df[sample.int(size=500,nrow(data.aux.df)),]
+
+I<-caret::createDataPartition(data.aux.df.sub$Tg,p=0.7,list = FALSE,times = 1)
+train = data.aux.df.sub[I,]
+test = data.aux.df.sub[-I,]
+watchlist <- list(eval = test, train = train)
+
+model <- caret::train(fm, data = data.aux.df.sub, method = "xgbTree", trControl = fitControl)
+print(model)
+```

@@ -1,0 +1,30 @@
+exportPattern("^[[:alpha:]]+")
+importFrom("automap","autoKrige")
+importFrom("caret","train","trainControl")
+importFrom("data.table","fread")
+importFrom("fields","Tps")
+importFrom("gstat","krige","krige.cv","idw","vgm","fit.variogram","variogram")
+importFrom("grDevices", "colorRampPalette")
+importFrom("kernlab","sigest")
+importFrom("lubridate","month","yday","year","mday")
+importFrom("methods", "slot", "slot<-","as")
+importFrom("ncdf4","nc_open","nc_close","ncvar_get")
+importFrom("raster","stack","crop",
+           "stackApply","values","writeRaster",
+           "extent","raster","extract","flip","addLayer",
+           "resample","mask","projectRaster","t")
+importFrom("rasterVis","levelplot")
+importFrom("rhdf5","h5read")
+importFrom("sp","coordinates")
+importFrom("stats", "na.omit", "na.pass", "predict", "sd","var","complete.cases")
+importFrom("spatialEco","sp.na.omit")
+importFrom("utils", "setTxtProgressBar", "txtProgressBar","tail")
+
+
+
+
+
+
+
+
+

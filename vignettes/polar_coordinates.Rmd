@@ -1,0 +1,141 @@
+---
+title: "Polar coordinates"
+author: "Marieke Dirksen"
+date: "August 28, 2017"
+output: 
+   html_document:
+            pandoc_args:  [
+      "--title-prefix", "Foo",
+      "--id-prefix", "Bar",
+      "--number-sections"
+      ]
+            theme: yeti
+            highlight: tango
+            fig_caption: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Setup
+
+Loading library and config file.
+
+```{r cars}
+library(rgeos)
+library(raster)
+library(sp)
+library(akima)
+library(data.table)
+
+cfg<-config::get(file="/nobackup/users/dirksen/Temperature/GeoInterpolation/config/config.yml")
+
+fname = cfg$svf_fullgrid
+st<- stack(fname,bands=1)
+names(st)<-"layer"
+
+ancillary_data<-list.files("/nobackup/users/dirksen/data/GMS/data/auxcillary_data/MetadataGMS/",full.names = TRUE)
+gms_coords<-fread(ancillary_data[5])
+proj4string(gms_coords)<-cfg$WGS84
+gms_RDcoords<-spTransform(gms_coords,cfg$pro)
+
+
+gms_RDcoords<-data.frame(gms_RDcoords)
+gms_RDcoords$reg_nm<-gsub("/","_",gms_RDcoords$reg_nm)
+
+# point<-data.frame(x=142892,y=470783) #center coordinates RD
+# coordinates(point)<-~x+y
+# proj4string(point)<-cfg$pro
+
+```
+
+# Functions
+
+Two functions:
+
+* cart2pol
+* point_info_stack
+
+The first changes the coordinate system. point_info_stack uses cart2pol, saves images in the 2 coordinate systems and writes raster and csv files for the cartesian (regular grid) and polar grids (irregular grid). 
+
+
+
+```{r}
+
+# see: https://nl.mathworks.com/help/matlab/ref/cart2pol.html
+cart2pol <- function(x, y,z)
+{
+  rho <- sqrt(x^2 + y^2)
+  theta <- atan(y/x)*2
+  z=z
+  data.frame(rho,theta,z)
+}
+
+point_info_stack<-function(spdf){
+  
+  
+  coordinates(spdf)<-~loc_lon+loc_lat  
+  proj4string(spdf)<-cfg$pro
+  # cut.svf.buf<-gBuffer(point, width = cfg$Runcertainty)
+  pbuf <- gBuffer(spdf, width = cfg$R+cfg$Runcertainty)
+  
+  st.crop<-crop(st,pbuf)
+  st.crop<-mask(st.crop,pbuf)
+  
+  writeRaster(st.crop,paste0("/nobackup/users/dirksen/data/GMS/data/GMS_AHN_SVF/data/cart/",spdf$reg_nm,"_",spdf$loc_nr,".grd"),overwrite=TRUE)
+  #st.crop<-trim(st.crop)
+  
+  jpeg(paste0("/nobackup/users/dirksen/data/GMS/data/GMS_AHN_SVF/fig/cart/",spdf$reg_nm,"_",spdf$loc_nr,".jpeg"))
+  plot(pbuf, main=spdf$loc_nr)
+  plot(st.crop,add=TRUE)
+  points(spdf,col="red")
+  dev.off()
+
+  # cart2sph<-function(x,y,z){
+  #   
+  #   azimuth = atan2(y,x)
+  #   elevation = atan2(z,sqrt(x^2 + y^2))
+  #   r = sqrt(x^2 + y^2 + z^2)
+  #   
+  #   data.frame(azimuth,elevation,r)
+  # }
+  
+  df<-data.frame(coordinates(st.crop),as.data.frame(st.crop))
+  df$x<-df$x-spdf$loc_lon
+  df$y<-df$y-spdf$loc_lat
+  df<-df[complete.cases(df),]
+  
+  df.pol<-cart2pol(df$x,df$y,df$layer)
+  write.table(df.pol,paste0("/nobackup/users/dirksen/data/GMS/data/GMS_AHN_SVF/data/pol/",spdf$reg_nm,"_",spdf$loc_nr,".txt"),sep = ",",row.names = FALSE)
+  
+  
+  fld<-with(df.pol,interp(x=theta,y=rho,z=z))
+  
+
+  jpeg(paste0("/nobackup/users/dirksen/data/GMS/data/GMS_AHN_SVF/fig/pol/",spdf$reg_nm,"_",spdf$loc_nr,".jpeg"))
+  filled.contour(x = fld$x,
+                 y = fld$y,
+                 z = fld$z,
+                 main=spdf$loc_nr,
+                 color.palette = colorRampPalette(c("white","orange","green")),
+                 xlab="rad",
+                 ylab="distance")
+  dev.off()
+  return(TRUE)
+}
+
+```
+
+# Run functions for GMS stations
+
+```{r}
+
+for (i in 1:length(gms_RDcoords$loc_nr)){
+  
+  point_info_stack(gms_RDcoords[i,])  
+}  
+
+
+```
+

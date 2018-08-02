@@ -1,0 +1,28 @@
+default:
+  pro : !expr CRS("+init=epsg:28992 +proj=sterea +lat_0=52.15616055555555 +lon_0=5.38763888888889 +k=0.9999079 +x_0=155000 +y_0=463000 +ellps=bessel +towgs84=565.4171,50.3319,465.5524,-0.398957388243134,0.343987817378283,-1.87740163998045,4.0725 +units=m +no_defs ")
+  WGS84 : !expr CRS("+init=epsg:4326")
+  WGS84web : !expr CRS("+init=epsg:3857")
+  svf1km : "/nobackup/users/dirksen/data/SVF/1km_grids/"
+  svf100m : "/nobackup/users/dirksen/data/SVF/100m_grids/"
+  svf_fullgrid : "/nobackup/users/dirksen/data/SVF/5m_grid/svf100m_fullgrid.grd"
+  Runcertainty : 50
+  R : 200
+  datapath : "/nobackup/users/dirksen/data"
+  HARMONIEdata : "/Temperature/HARMONIE"
+  HARMONIEdata_mask: "/Temperature/HARMONIE_mask"
+  nldistshore : "/Temperature/KNMIstations/wn_distshore_001.asc"
+  nlbuffer : "/Temperature/KNMIstations/wn_maskbuffer_001.asc"
+  nlstations : "/Temperature/KNMIstations/coordinates_stations.csv"
+  exampledatum : "20120101"    
+  blocksize : 20000
+  mxdidw : 120000
+  mxdkrige : Inf
+  mod : "Exp"
+  use.log : FALSE   
+  nltemperature : "/nobackup/users/dirksen/data/Temperature/KNMIstations/KNMI_20170911.txt"
+  nlradiation : "/nobackup/users/dirksen/data/radiationSICCSgroundobs/sat_over_obs2.csv"   
+  datapath_satellite : "/nobackup/users/dirksen/data/radiationSICCSgroundobs/Satellite_data/temp/"
+  pca_harmonie : "/nobackup/users/dirksen/data/PCA/HARMONIE_temperature_10comp_8000nSamples_6940days_pca.rds"
+  pca_harmonie_mask : "/nobackup/users/dirksen/data/PCA/HARM_all_mask_nsample83790.rds"
+  pca_siccs : "/nobackup/users/dirksen/data/PCA/SICCS_radiation_15comp_8000nSamples_4350days_pca.rds"
+  sarah : "/nobackup/users/dirksen/data/SARAH_raster/"   

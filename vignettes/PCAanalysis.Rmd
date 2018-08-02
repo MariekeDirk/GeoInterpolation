@@ -1,0 +1,189 @@
+---
+title: "PCA analysis"
+author: "Marieke Dirksen"
+date: "September 5, 2017"
+output: 
+   html_document:
+            pandoc_args:  [
+      "--title-prefix", "Foo",
+      "--id-prefix", "Bar",
+      "--number-sections"
+      ]
+            theme: yeti
+            highlight: tango
+            fig_caption: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r library, message=FALSE, echo=FALSE}
+library(RStoolbox)
+library(raster)
+library(sp)
+
+cfg <- config::get(file = "/nobackup/users/dirksen/Temperature/GeoInterpolation/config/config.yml")
+
+pca_variance<-function(sdev){
+proportion_variance<-sdev^2/sum(sdev^2)*100
+cumulative_proportion_variance<-cumsum(proportion_variance)
+return(list("proportion_variance"=proportion_variance,"cumulative_proportion_variance"=cumulative_proportion_variance))
+}
+```
+
+# PCA analysis on raster objects
+
+* Use the PCA components for the interpolation 
+* Advantage: not bound to the start and stop time for the model
+* Disadvantage: no specific information of the day
+
+```{r pca, eval=FALSE}
+##########################################################################
+r.harm.files<-list.files(paste0(cfg$datapath,cfg$HARMONIEdata),pattern=".grd",full.names = TRUE)
+# st.all<-stack(r.harm.files)
+
+#For all days with mask (see dataraw for the masking code)
+r.harm.mask<-list.files(paste0(cfg$datapath,cfg$HARMONIEdata_mask),pattern=".grd",full.names = TRUE)
+r.harm.mask<-stack(r.harm.mask)
+
+r.pca<-rasterPCA(r.harm.mask,
+                 nSamples = ncell(r.harm.mask[[1]]), #samples pixels for the pca fitting, all pixels takes to long, this is 10%
+                 nComp = 8, #number of components to return
+                 spca=TRUE, #center and scale input images so layers are equally weighted 
+                 maskCheck=FALSE) #if you are sure no na values are included use maskCheck=FALSE (==speed)
+saveRDS(r.pca,paste0("/nobackup/users/dirksen/data/PCA/HARM_all_mask_nsample",ncell(r.harm.mask),".rds"))
+
+pca_variance(r.pca$model$sdev)
+#Check if there are differences with the function prcomp or princomp
+r.harm.dates<-as.Date(list.files(paste0(cfg$datapath,cfg$HARMONIEdata),pattern=".grd"),format="file%Y%m%dT123000Z.grd" )
+r.harm.files<-list.files(paste0(cfg$datapath,cfg$HARMONIEdata),pattern=".grd",full.names = TRUE)
+
+#Monthly PCA analysis
+r.harm.months<-format.Date(r.harm.dates, "%m")
+
+months.unique<-unique(r.harm.months)
+
+for(i in 1:length(months.unique)){  
+
+print(months.unique[i])
+I<-which(r.harm.months==months.unique[i])
+r.harm<-stack(r.harm.files[I])
+
+print("calculating PCs")
+r.pca<-rasterPCA(r.harm,
+                 nSamples = ncell(r.harm)/10, #samples pixels for the pca fitting, all pixels takes to long, this is 10%
+                 nComp = 5, #number of components to return
+                 spca=TRUE, #center and scale input images so layers are equally weighted 
+                 maskCheck=FALSE) #if you are sure no na values are included use maskCheck=FALSE (==speed)
+
+print("saving PCs")
+saveRDS(r.pca,paste0("/nobackup/users/dirksen/data/PCA/HARM_month",months.unique[i],"_nsample",ncell(r.harm)/10,".rds"))
+}
+
+monthly_pca<-list.files("/nobackup/users/dirksen/data/PCA/",pattern="HARM_month",full.names = TRUE)
+
+monthly_pca<-lapply(monthly_pca,readRDS)
+
+monthly_pca_map<-lapply(monthly_pca,"[[",3)
+
+monthly_sdev<-lapply(monthly_pca,"[[",2)
+monthly_sdev<-lapply(monthly_sdev,"[[",1)
+monthly_var<-lapply(monthly_sdev,pca_variance)
+
+
+for(i in 1:length(monthly_pca)){
+ppov<-monthly_var[[i]]$proportion_variance[1:5]
+names(monthly_pca_map[[i]])<-paste0(names(monthly_pca_map[[i]]),"_",round(ppov,1))
+png(file = paste0("/nobackup/users/dirksen/data/PCA/fig/month_",i,".png"), width=7500/2,height=10000/2,res=300,bg = "transparent")
+spplot(monthly_pca_map[[i]],main=paste0("Month ",i),col.regions=terrain.colors(n=200))
+dev.off()
+}
+##################################################################
+length(names(r.harm))
+
+#SICCS radiation data
+r.sat<-stack(list.files(cfg$datapath_satellite,pattern=".grd",full.names=TRUE))
+length(names(r.sat))
+
+#SARAH data: too large cropped size=31GB
+# r.sarah<-list.files(cfg$sarah,pattern=".grd",full.names = TRUE)
+# 
+# # r.sarah.sub<-stack(r.sarah[1:1000])
+# bb<- extent(-37.6333,47.9833,29.2167,76.7667)
+# 
+# for (i in 1:length(r.sarah)){
+# r<-raster(r.sarah[i])
+# r<-crop(r,bb)
+# writeRaster(r,paste0("/nobackup/users/dirksen/data/SARAH_crop/SARAH_crop_",i,".grd"))
+# }
+# # r.sub<-sampleRandom(r.st,size=10,asRaster=TRUE)
+# r.sarah.crop<-stack(list.files("/nobackup/users/dirksen/data/SARAH_crop/",pattern=".grd",full.names = TRUE))
+
+r.pca<-rasterPCA(r.sarah.crop,
+                 nSamples = 10000, #samples pixels for the pca fitting, all pixels takes to long, this is 10%
+                 nComp = 15, #number of components to return
+                 spca=TRUE, #center and scale input images so layers are equally weighted 
+                 maskCheck=TRUE) #if you are sure no na values are included use maskCheck=FALSE (==speed)
+# saveRDS(r.pca,"/nobackup/users/dirksen/data/PCA/SARAH_europe_radiation_15comp_100000nSamples_10401days_pca.rds")
+```
+
+```{r pca evaluation}
+pca_variance<-function(sdev){
+proportion_variance<-sdev^2/sum(sdev^2)*100
+cumulative_proportion_variance<-cumsum(proportion_variance)
+return(list("proportion_variance"=proportion_variance,"cumulative_proportion_variance"=cumulative_proportion_variance))
+}
+
+pcaHARM<-readRDS("/nobackup/users/dirksen/data/PCA/HARMONIE_temperature_10comp_8000nSamples_6940days_pca.rds")
+plot(pcaHARM$map)
+
+varHARM<-pca_variance(pcaHARM$model$sdev)
+plot(varHARM$cumulative_proportion_variance[1:15])
+
+pcaSICCS<-readRDS("/nobackup/users/dirksen/data/PCA/SICCS_radiation_15comp_8000nSamples_4350days_pca.rds")
+plot(pcaSICCS$map)
+
+varSICCS<-pca_variance(pcaSICCS$model$sdev)
+plot(varSICCS$cumulative_proportion_variance[1:25])
+
+pcaSARAH<-readRDS("/nobackup/users/dirksen/data/PCA/SARAH_radiation_15comp_8000nSamples_360days_pca.rds")
+varSARAH<-pca_variance(pcaSARAH$model$sdev)
+plot(varSARAH$cumulative_proportion_variance[1:25])
+```
+
+```{r sarah}
+time.format<-"raster_%Y-%m-%d.grd"
+grdfiles<- list.files("/nobackup/users/dirksen/data/SARAH_raster/",pattern=".grd")
+sarah.datums<-as.Date(grdfiles,format = time.format)
+sarah.months<-months(sarah.datums)
+
+
+sarah.months.unique<-unique(sarah.months)
+I<-which(sarah.months==sarah.months.unique[1])
+
+Jan.files<-list.files("/nobackup/users/dirksen/data/SARAH_raster/",pattern=".grd",full.names = TRUE)[I]
+Jan.st<-stack(Jan.files)
+
+r.pca<-rasterPCA(Jan.st,
+                 nSamples = 8000, #samples pixels for the pca fitting, all pixels takes to long, this is 10%
+                 nComp = 5, #number of components to return
+                 spca=TRUE, #center and scale input images so layers are equally weighted 
+                 maskCheck=TRUE) #if you are sure no na values are included use maskCheck=FALSE (==speed)
+
+```
+
+# Self Organizing Maps
+
+links:
+
+* [tutorial kohonen](http://trymachinelearning.com/machine-learning-algorithms/instance-based/self-organising-map/)
+* [wiki](https://en.wikibooks.org/wiki/Data_Mining_Algorithms_In_R/Clustering/Self-Organizing_Maps_(SOM)
+* [ppt](https://eric.univ-lyon2.fr/~ricco/cours/slides/en/kohonen_som.pdf)
+* [article](https://cdn.intechopen.com/pdfs-wm/40865.pdf)
+
+```{r SOM}
+library(kohonen)
+library(SOMbrero)
+
+```

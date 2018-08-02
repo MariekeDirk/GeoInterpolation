@@ -1,0 +1,77 @@
+---
+title: "Creating an innovative radiation product for Europe"
+author: "Marieke Dirksen"
+date: "August 29, 2017"
+output:
+  word_document: default
+  html_document:
+    fig_caption: yes
+    highlight: tango
+    pandoc_args:
+    - --title-prefix
+    - Foo
+    - --id-prefix
+    - Bar
+    - --number-sections
+    theme: yeti
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Introduction
+We aim at creating a radiation product for entire Europe covering a long time period (back to the '50 or further if possible). During this study we will be using different radiation datasets to fill in the gaps in both space and time. 
+
+Solar radiation within Europe is measured by numerous ground stations, from which the BSRN stations are known to be of high quality. A experimental dataset containing information of stations throughout Europe is also available, but in some cases metadata is lacking. Therefore it would be beneficial to gather the information from each individual country. 
+
+```{r stationdata, echo=FALSE, message=FALSE, catch=TRUE}
+library(raster)
+library(data.table)
+library(leaflet)
+library(rgdal)
+library(maptools)
+library(ggplot2)
+library(ggmap)
+library(GeoInterpolation)
+
+subset_europe<-fread("/nobackup/users/dirksen/data/radiation_europe/qq_synoptical_stations_Jan2016.txt",header=TRUE)
+
+stations_europe<-fread("/nobackup/users/dirksen/data/radiation_europe/qq_synoptical_stations_2016.txt",header=FALSE)
+names(stations_europe)<-names(subset_europe)
+
+stations.plot<-stations_europe[!duplicated(stations_europe$syn_id),]
+stations.plot<-stations.plot[complete.cases(stations.plot$lat) & complete.cases(stations.plot$lon),]
+
+```
+
+```{r plot, echo=FALSE,warning=FALSE,message=FALSE,catch=TRUE}
+map<-get_map(location="Europe",zoom=4)
+ggmap(map)+geom_point(aes(x=lon,y=lat),data=stations.plot)
+```
+
+One of the issues we are expecting to encounter is the inhomogenieus station and temporal coverage. Products like SARAH from Meteosat Second Generation (MSG) do offer spatial coverage, though they go back to the 80's. An example of the SARAH radiation data on 1984-06-03 is included in the figure below, which show the western circulation patterns on the northern hemisphere. 
+
+```{r sarah, echo=FALSE,catch=TRUE}
+example.file<-"/nobackup/users/dirksen/data/SARAH_raster/raster_1984-06-03.grd"
+st<-stack(example.file)
+spplot(st,col.regions=terrain.colors(n=200))
+```
+
+# Approach and Expected Results
+
+The first challenge is to get the quality controlled data from as much as stations as possible. Though a start can be made to combine the station data and satellite data. 
+
+The second challenge involves describing the radiation patterns from SARAH in a general way, so we can use it further back in time. Some thoughts on this:
+
+* Can we assume the present radiation pattern are similar to past radiation pattern? And if so...
+* If we go further back in time there are only sunshine duration measurement, what is the best way to estimate radiation from these measurements?
+* Are we going to use SARAH monthly climatologies as a trend? Do we also want a measure of uncertainty, like a standard deviation?
+* Or are we going for a completely different approach to describe the SARAH data, like a principle component analysis or self organizing maps? 
+
+The third challenge is combining the ground stations with the SARAH data. Are we going for a geostatistical or a machine learning approach?
+
+With the radiation for Europe we aim at calculating the potential evapotranspiration.  
+
+
+
