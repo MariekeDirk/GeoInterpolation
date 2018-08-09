@@ -45,7 +45,7 @@ st_raster<-c(ml_raster,ok_raster)
 
 spdf = wunderground_df1
 
-if(file.exists(st_raster)){
+if(file.exists(st_raster[1])){
   raster_prediction<-stack(st_raster) 
   names(raster_prediction)<-model_names
   spdf<-spTransform(spdf,crs(raster_prediction))
@@ -68,6 +68,14 @@ if(file.exists(st_raster)){
 } #end i loop
 
 } #end file.nr loop
+
+library(ggmap)
+library(ggplot2)
+df<-fread("/nobackup/users/dirksen/data/wunderground/meta_data_start_stop.txt")
+map<-get_map(location = 'Holland',zoom=7)
+
+ggmap(map) + geom_point(data=df,aes(x=Lon,y=Lat),size=2,alpha=0.5,col='red') +
+  geom_label_repel(data=df,aes(x=Lon,y=Lat,label=`Station ID`),size=3)
 
 #############Analysis of the overlay files
 R2<-function(pred,obs){1-sum((obs-pred)^2)/sum((obs-mean(pred))^2)}

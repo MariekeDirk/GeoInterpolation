@@ -50,6 +50,16 @@ write.table(df,paste0(folder.loc,"/",stationname,"/","daydata_",t,".txt"),row.na
 # setwd(loc) # ga in de map staan met files die onder elkaar moeten staan. 
 txt.files=list.files(path=paste0(folder.loc,"/",stationname,"/"), full.names=TRUE, pattern=".txt")
 df<-lapply(txt.files,function(x)fread(x))
+
+#only select files with data
+rows<-unlist(lapply(df,nrow))
+I.sub<-which(rows!=0)
+df<-df[I.sub]
+
+#check if the columns exist, rm non existing 
+colnms<-unlist(lapply(df,function(x) "DateUTC<br>" %in% colnames(x) & var %in% colnames(x)))
+df<-df[colnms]
+
 df.t<-lapply(df,function(x)subset(x,select=c(var,"DateUTC<br>"))) #Subsetting Columns in all the txt files
 df.m<-Reduce(function(x,y) rbind(x,y,fill=TRUE),df.t)
 names(df.m)<-c(var,"Timestamp_UTC")
@@ -61,6 +71,149 @@ unlink(txt.files)   # haalt alle dagfiles weg, alleen combined_stationname.txt b
 message("removing all the single dayfiles")
 
 }
+#To Run
+###########################################
+###########################################
+# Rural stations
+# IUTRECHT148
+# Davis Vantage Pro2
+# 52.123 5.285
+# 17m
+ 
+# IZEELAND47
+# Davis Vantage Pro2
+# 51.628 3.996
+# 0m
+ 
+# IHEINKEN7
+# Davis Vantage Vue
+# 51.474 3.814
+# 0m
+
+# IPWSOIRS2
+# Davis Vantage Vue
+# 51.512 5.317
+# 5m
+
+# IMONTFOR16
+# Davis Vantage Pro2 Plus
+# 51.122 5.955
+# 24m
+
+# ILIMBURG36
+# Davis Vantage Pro2 Plus
+# 51.292 6.082
+# 23m
+
+# ILIMBURG84
+# Davis Vantage Pro2
+# 51.514 6.084
+# 18m
+
+# IBERGHEM2
+# Davis Vantage Pro2
+# 51.757 5.567
+# 11m
+
+# IOVERIJS145
+# Davis Vantage Pro2+
+# 52.347 6.482 
+# 9m
+
+# IGIETEN4
+# Davis Vantage Pro2+
+# 53.007 6.762
+# 17m
+
+# Next to water bodies
+# IZUIDHOL230
+# Davis Vantage Pro2
+# 52.190 4.705
+# -7m
+
+# INOTHBR4
+# Davis Vantage Vue
+# 51.710 4.813
+# 9m
+
+# INOORDHO205
+# Davis Vantage Pro2 Plus
+# 52.726 5.011
+# 0m
+
+# IDENBURG9
+# Davis Vantage Pro2
+# 53.060 4.805
+# 0m
+
+# IOOSTE2
+# Davis Vantage Pro2
+# 53.075 4.883
+# 0m
+
+# IFRIESLA101
+# Davis Vantage Vue
+# 53.453 5.811
+# 7m
+
+# IGRONING36
+# Davis Vantage Pro2
+# 53.294 6.538
+# 0m
+
+# IGRONING229
+# Davis Vantage Pro2
+# 53.312 6.366
+# 0m
+
+# IFRIESLA82
+# Davis Vantage Pro2
+# 53.224 6.000
+# 0m
+
+# IINDIJK2
+# Davis Vantage Pro2
+# 52.947 5.623
+# 0m
+
+# IGIETH004
+# Davis Vantage Vue
+# 52.722 6.067
+# 0m
+
+# IDRENTHE18
+# Davis Vantage Pro2
+# 52.757 6.368
+# 12m
+
+#stations to process
+# IZEEWOLD31
+# Davis Vantage Pro2
+# 52.389 5.478
+# -3m
+
+# IFLEVOLA43
+# Davis Vantage Pro2
+# 52.540 5.593
+# -4
+
+# ILELYSTA69
+# Davis Vantage Pro2
+# 52.491 5.489
+# 15
+
+# IDRENTHE101
+# Davis Vantage Pro2 
+# 52.747 6.550
+# 13
+
+# IGELDERL117
+# Davis Vantage Pro2
+# 51.952 5.860
+# 7
+# stations<-c('ILELYSTA69')
+# lapply(stations,download_time_seq)
+###########################################
 ###########################################
 
 # Amsterdam Area: no good quality sensors

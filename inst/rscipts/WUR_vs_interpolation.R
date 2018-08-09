@@ -5,45 +5,54 @@ main_loc<-"/nobackup/users/dirksen/data/wunderground/"
 meta_data<-fread(paste0(main_loc,"meta_data.csv"),
                  header=TRUE,
                  dec=".",
-                 colClasses = c("character","numeric","numeric","character","numeric"))
+                 colClasses = c("character","numeric","numeric","character","numeric","character"))
 
-
+meta_data<-meta_data[which(meta_data$`Data available`=="Y"),]
 wur_paths<-paste0(main_loc,meta_data$'Station ID',"/")
 wur_files<-lapply(wur_paths,list.files)
 wur_full_names<-paste0(wur_paths,unlist(wur_files))
 
 #first 9 files processed
 #IEINDHOV175 empty
-i=9
-df<-fread(wur_full_names[i])
-df$day<-as.Date(df$Timestamp_UTC)
 
-#remove unrealistic values
-df<-df[-which(df$TemperatureC < -50),]
+df<-lapply(wur_full_names,fread)
+df<-lapply(df,function(x) data.frame(x$TemperatureC,as.Date(x$Timestamp_UTC)))
+df<-lapply(df,setNames,nm=c("TemperatureC","day")) #remove unrealistic values or NA
 
+df<-lapply(df,function(x) x[-which(x$TemperatureC < -50),]) #remove unrealistic values or NA
 
 #for the first station the time interfall is 5 min
 max_obs<-288
 min_obs<-round(288*0.9)
 #
     
-obs_per_day<-plyr::count(df,vars="day")
-I_select<-which(obs_per_day$freq < max_obs & obs_per_day$freq > min_obs)
+obs_per_day<-lapply(df,function(x) plyr::count(x,vars="day"))
 
-day_subset<-obs_per_day[I_select,]
+I_select<-lapply(obs_per_day, function(x) -which(x$freq < max_obs & x$freq > min_obs))
+
+day_subset<-mapply(x=df,y=I_select,function(x,y) x[y,],SIMPLIFY = FALSE)
 
 # inner join with the original dataset
-df_filtered<-inner_join(df,day_subset)
+df_filter<-unlist(lapply(day_subset,function(x) nrow(x)))
+I_filter<-which(df_filter!=0)
+day_subset<-day_subset[I_filter]
 
-df_daymean<-aggregate(TemperatureC ~ day, data = df_filtered, mean)
+df_daymean<-lapply(day_subset,function(x) aggregate(TemperatureC ~ day, data = x, mean))
 
-write.table(df_daymean,
-            file = paste0("/nobackup/users/dirksen/data/wunderground/Daymean/",meta_data$'Station ID'[i],".txt"),
-            row.names = FALSE,
-            sep=",")
+df_meta<-meta_data$`Station ID`[I_filter]
+
+mapply(x=df_daymean,y=df_meta,function(x,y) write.table(x,
+                                                      file = paste0("/nobackup/users/dirksen/data/wunderground/Daymean/",y,".txt"),
+                                                      row.names = FALSE,
+                                                      sep=","
+                                                      ))
+# write.table(df_daymean,
+#             file = paste0("/nobackup/users/dirksen/data/wunderground/Daymean/",meta_data$'Station ID'[i],".txt"),
+#             row.names = FALSE,
+#             sep=",")
 
 ################adding information to the meta data
-
+meta_data<-meta_data[I_filter,]
 day_means<-list.files("/nobackup/users/dirksen/data/wunderground/Daymean/",full.names = TRUE)
 df.means<-lapply(day_means,fread)
 

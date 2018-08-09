@@ -33,5 +33,5 @@ download_time_seq(stationname = "IZUIDHOL87",
                   start = as.Date("2018/04/01"),
                   stop = as.Date("2018/05/01"),
                   var = "TemperatureC",
-                  older.loc = ".")
+                  folder.loc = ".")
 }
