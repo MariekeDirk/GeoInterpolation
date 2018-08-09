@@ -15,9 +15,12 @@
 #'                   stop = as.Date("2018/05/01"),
 #'                   var = "TemperatureC",
 #'                   folder.loc = ".")
+#' For multiple stations use lapply:
+#' stations<-c('IZUIDHOL36','ILIMBURG36')
+#' lapply(stations,download_time_seq)
 #' @export
 download_time_seq<-function(stationname = "IZUIDHOL87",
-                            start = as.Date("1999/03/01"),
+                            start = as.Date("2013/03/01"),
                             stop = as.Date("2018/05/01"),
                             var = "TemperatureC",
                             folder.loc = "/nobackup/users/dirksen/data/wunderground/"){
@@ -50,8 +53,38 @@ write.table(df,paste0(folder.loc,"/",stationname,"/","daydata_",t,".txt"),row.na
 # setwd(loc) # ga in de map staan met files die onder elkaar moeten staan. 
 txt.files=list.files(path=paste0(folder.loc,"/",stationname,"/"), full.names=TRUE, pattern=".txt")
 df<-lapply(txt.files,function(x)fread(x))
+
+#only select files with data
+rows<-unlist(lapply(df,nrow))
+I.sub<-which(rows!=0)
+
+if(length(I.sub)==0){
+  fld<-paste0(folder.loc,"/",stationname,"/")
+  unlink(fld,recursive=TRUE)
+  return(FALSE)
+}
+
+df<-df[I.sub]
+
+#check if the columns exist, rm non existing 
+colnms<-unlist(lapply(df,function(x) "DateUTC<br>" %in% colnames(x) & var %in% colnames(x)))
+df<-df[colnms]
+
+if(length(df)==0){
+  fld<-paste0(folder.loc,"/",stationname,"/")
+  unlink(fld,recursive=TRUE)
+  return(FALSE)
+}
+
 df.t<-lapply(df,function(x)subset(x,select=c(var,"DateUTC<br>"))) #Subsetting Columns in all the txt files
 df.m<-Reduce(function(x,y) rbind(x,y,fill=TRUE),df.t)
+
+#exit if there is no data in the files 
+if(nrow(df.m)==0){
+  fld<-paste0(folder.loc,"/",stationname,"/")
+  unlink(fld,recursive=TRUE)
+  return(FALSE)
+}
 names(df.m)<-c(var,"Timestamp_UTC")
 
 write.table(df.m,paste0(folder.loc,"/",stationname,"/","daydata_rbind_",start,"_until_",stop,".txt"),row.names = FALSE,sep=",")
@@ -61,114 +94,4 @@ unlink(txt.files)   # haalt alle dagfiles weg, alleen combined_stationname.txt b
 message("removing all the single dayfiles")
 
 }
-###########################################
-
-# Amsterdam Area: no good quality sensors
-
-#Groningen
-
-# IGRONING45
-# Davis Vantage Pro2 Plus
-# 53.232 6.604
-# 0m
-
-# IGRONING106
-# Davis Vantage Pro2 Plus
-# 53.238 6.602 
-# 0m
-
-# Eindhoven
-
-# IEINDHOV167
-# Davis Vantage Pro2 Plus
-# 51.418 5.493
-# 20m
-
-# IEINDHOV175
-# Oregon Scientific Professional Weather Center
-# 51.460 5.480
-# 3m
-
-# stations<-c('IGRONING45','IGRONING106','IEINDHOV167','IEINDHOV175')
-# 
-# lapply(stations,download_time_seq)
-
-## Script om Wunderground data te downloaden		##
-## 1. Identificeer stations binnen een bepaald gebied	##
-## 2. Download tijdreeksen				##
-## 3. Header error check				##
-##########################################################
-
-######################################################
-# 1. Identificeer stations binnen een bepaald gebied #
-######################################################
-# 
-# rm(list=ls(all=TRUE))
-# library(RCurl)
-# 
-# day <- 			# vul dag in als dd 
-# month <- 		# vul maand in als MM
-# year <- 		# vul jaar in als YYYY
-# 
-# # lijst met voorvoegsels van stationsnamen. Zie Wundermap voor veelvoorkomende voorvoegsels in het gebied. Bijv: in Wageningen zijn de voorvoegsels vaak "IWAGENIN".
-# stationname_list <- c("IWAGENIN", "IBENNEKO")	
-# 
-# dir.create("Wundergroundstations")
-# 
-# for(m in 1:length(stationname_list)){
-# stationname <- stationname_list[m]	
-# dir.create(paste0("Wundergroundstations/",stationname)) 
-# 
-# for(n in 1:30){	# de getallen 1 t/m 300 worden geprobeerd als getal in stationID, dit is het geval in een middelgrote stad
-# 	print(n)
-# 		tryCatch({download.file(paste0("https://www.wunderground.com/weatherstation/WXDailyHistory.asp?ID=",stationname, n,"&day=",day,"&year=",year,"&month=",month,"&format=1"),
-#                     paste0("Wundergroundstations/",stationname,"/",stationname, n,".txt"),quiet=TRUE)}, silent=FALSE, condition = function(err) {} )	
-# }
-# 
-# 
-# files <- list.files(path = paste0("Wundergroundstations/", stationname), all.files=TRUE, full.names=TRUE, recursive=FALSE, pattern=".txt")	
-# unlink(files[which(file.info(files)$size<188)])	# files met alleen de header hebben grootte 185* byte (*op sommige computers 187)
-# }
-# 
-# 	stationlocationsFileName <- paste0("stationlocations_",day, month, year,".txt")
-# 	unlink(stationlocationsFileName)	
-# 	input <- c("stationID lon lat")
-# 	writeLines(input, stationlocationsFileName)
-# 	
-# 
-#  
-# for(stationname in stationname_list){
-# list <- list.files(path = paste0("Wundergroundstations/", stationname), all.files=FALSE, full.names=FALSE, recursive=FALSE, pattern=".txt")
-# if(length(list) < 1){next}	# lege mappen worden overgeslagen
-# for(k in 1:length(list)){ 	
-# st <- substr(list[k], 1, (nchar(list[k]) - 4))	# knipt laatste 4 letters eraf
-# u <- paste0("http://www.wunderground.com/personal-weather-station/dashboard?ID=", st)	# mogelijk moet 'http' veranderd worden in 'https'
-# txt <- getURL(u) 
-# 
-# 	#latitude:
-# 	pos <- regexpr("lat:", txt)
-# 	lat <- substr(txt, pos+6, pos+16)
-# 	#longitude:
-# 	pos <- regexpr("lon:", txt)
-# 	lon <- substr(txt, pos+6, pos+15)
-# 
-# temp_list <- matrix(nrow=1, ncol=3)
-# temp_list[,1] <- st		# k'de station uit map met voorvoegsel stationname, zonder .txt
-# temp_list[,2] <- lon
-# temp_list[,3] <- lat
-# write.table(temp_list, stationlocationsFileName, append=TRUE, row.names=FALSE, col.names=FALSE, quote=FALSE)
-# }
-# }
-# 
-# # grenzen in graden van het gebied waarin je geinteresseerd bent:
-# lon_min <- 4.67 				
-# lon_max <- 5.05 
-# lat_min <- 52.24
-# lat_max <- 52.44
-# 
-# # let op: stationlocations.txt wordt hiermee overschreven 
-# stationlocations <- read.table(stationlocationsFileName, header=TRUE)
-# stationlocations <- stationlocations[which(stationlocations$lon >= lon_min & stationlocations$lon <= lon_max & stationlocations$lat >= lat_min & stationlocations$lat <= lat_max),]
-# write.table(stationlocations, stationlocationsFileName, row.names=FALSE, col.names=TRUE, quote=FALSE)
-
 

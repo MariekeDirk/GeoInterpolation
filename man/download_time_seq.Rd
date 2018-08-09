@@ -4,7 +4,7 @@
 \alias{download_time_seq}
 \title{Wunderground time series from URL}
 \usage{
-download_time_seq(stationname = "IZUIDHOL87", start = as.Date("1999/03/01"),
+download_time_seq(stationname = "IZUIDHOL87", start = as.Date("2013/03/01"),
   stop = as.Date("2018/05/01"), var = "TemperatureC",
   folder.loc = "/nobackup/users/dirksen/data/wunderground/")
 }
@@ -33,5 +33,8 @@ download_time_seq(stationname = "IZUIDHOL87",
                   start = as.Date("2018/04/01"),
                   stop = as.Date("2018/05/01"),
                   var = "TemperatureC",
-                  older.loc = ".")
+                  folder.loc = ".")
+For multiple stations use lapply:
+stations<-c('IZUIDHOL36','ILIMBURG36')
+lapply(stations,download_time_seq)
 }

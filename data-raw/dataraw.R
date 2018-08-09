@@ -71,7 +71,7 @@ for(i in 1:length(r.harm.files)){
 }
 
 #Wunderground metadata
-wunderground_meta<-fread("file:///C:/Users/marie/Downloads/meta_data_start_stop.txt")
+wunderground_meta<-fread("/nobackup/users/dirksen/data/wunderground/meta_data_start_stop.txt")
 wunderground_meta<-data.frame(wunderground_meta)
 wunderground_meta$start<-as.Date(wunderground_meta$start)
 wunderground_meta$stop<-as.Date(wunderground_meta$stop)
