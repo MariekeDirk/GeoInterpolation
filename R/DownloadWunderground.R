@@ -63,7 +63,6 @@ if(length(I.sub)==0){
   unlink(fld,recursive=TRUE)
   return(FALSE)
 }
-
 df<-df[I.sub]
 
 #check if the columns exist, rm non existing 
@@ -94,4 +93,3 @@ unlink(txt.files)   # haalt alle dagfiles weg, alleen combined_stationname.txt b
 message("removing all the single dayfiles")
 
 }
-
