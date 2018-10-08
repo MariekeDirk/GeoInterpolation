@@ -7,7 +7,7 @@
 #'@author Marieke Dirksen
 #'@export
 get_statistical_summary<-function(observed,prediction){
-
+requireNamespace("ModelMetrics")
 n <- sum(complete.cases(prediction))
 #r2
 teller<-sum((observed-prediction)^2)
@@ -23,5 +23,8 @@ RMSEsd<-RMSE/sqrt(1/length(noemer)*sum(noemer))
 ME<-n*(sum(prediction)-sum(observed))
 MEmean<-ME/mean(observed)
 
-return(list("R2"=r2,"RMSE"=RMSE,"RMSEsd"=RMSEsd,"ME"=ME,"MEmean"=MEmean))
+#MAE
+MAE<-mae(observed,prediction)
+
+return(list("R2"=r2,"RMSE"=RMSE,"RMSEsd"=RMSEsd,"ME"=ME,"MEmean"=MEmean,"MAE"=MAE))
 }

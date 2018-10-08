@@ -32,7 +32,7 @@ temperature_climate<-temperature_climate[complete.cases(temperature_climate),]
 main_save_path<-"/nobackup/users/dirksen/data/Temperature/Aux_results/"    
 
 fname<-"/nobackup/users/dirksen/data/Temperature/KNMIstations/temperature_auxiliary_over.txt"
-for (i in  8611:length(datums)){
+for (i in  1:length(datums)){
 
 datum<-datums[i]
 print(datum)
@@ -69,78 +69,78 @@ projection(inputdata)<-cfg$pro
 # 
 # 
 # #Cubist model
-cubist.mod<-cubist_model_caret(groundstations = inputdata,
-                               formula=formula(paste0("Tint ~ ",names(spdf_aux)[1],"+",
-                                                      names(spdf_aux)[2],"+",
-                                                      names(spdf_aux)[3],"+",
-                                                      names(spdf_aux)[4],"+",
-                                                      names(spdf_aux)[5],"+",
-                                                      names(spdf_aux)[6],"+",
-                                                      names(spdf_aux)[7],"+",
-                                                      names(spdf_aux)[8])),
-                               variable="Tg",
-                               grid_prediction=spdf_aux,
-                               method.overlay = 'extract')
-
-cubist.mod$statistical_summary$datum<-datum
-
-writeRaster(cubist.mod$spatial,paste0(main_save_path,"Cubist_mod/Predictions/temperature_lm_pca_harmonie",datum,".grd"),overwrite=TRUE)
-
-saveRDS(cubist.mod$model,paste0(main_save_path,"Cubist_mod/Model/model_",datum,".rds"))
-
-write.table(cubist.mod$statistical_summary,paste0(main_save_path,"cubist_statistical_summary.txt"),
-            row.names=FALSE,col.names = !file.exists(paste0(main_save_path,"cubist_statistical_summary.txt")),
-            append = TRUE,sep=",")
+# cubist.mod<-cubist_model_caret(groundstations = inputdata,
+#                                formula=formula(paste0("Tint ~ ",names(spdf_aux)[1],"+",
+#                                                       names(spdf_aux)[2],"+",
+#                                                       names(spdf_aux)[3],"+",
+#                                                       names(spdf_aux)[4],"+",
+#                                                       names(spdf_aux)[5],"+",
+#                                                       names(spdf_aux)[6],"+",
+#                                                       names(spdf_aux)[7],"+",
+#                                                       names(spdf_aux)[8])),
+#                                variable="Tg",
+#                                grid_prediction=spdf_aux,
+#                                method.overlay = 'extract')
 # 
-# #svmRadial model
-svmRadial.mod<-svmRadial_model_caret(groundstations = inputdata,
-                                  formula=formula(paste0("Tint ~ ",names(spdf_aux)[1],"+",
-                                                         names(spdf_aux)[2],"+",
-                                                         names(spdf_aux)[3],"+",
-                                                         names(spdf_aux)[4],"+",
-                                                         names(spdf_aux)[5],"+",
-                                                         names(spdf_aux)[6],"+",
-                                                         names(spdf_aux)[7],"+",
-                                                         names(spdf_aux)[8])),
-                                  variable="Tg",
-                                  grid_prediction=spdf_aux,
-                                  method.overlay = 'extract'
-)
-
-svmRadial.mod$statistical_summary$datum<-datum
-writeRaster(svmRadial.mod$spatial,paste0(main_save_path,"SVM_radial_mod/Predictions/temperature_lm_pca_harmonie",
-                                         datum,".grd"),overwrite=TRUE)
-
-saveRDS(svmRadial.mod$model,paste0(main_save_path,"SVM_radial_mod/Model/model_",
-                                   datum,".rds"))
-
-write.table(svmRadial.mod$statistical_summary,paste0(main_save_path,"svmRadial_statistical_summary.txt"),
-            row.names=FALSE,col.names = !file.exists(paste0(main_save_path,"svmRadial_statistical_summary.txt")),
-            append = TRUE,sep=",")
+# cubist.mod$statistical_summary$datum<-datum
 # 
-# #linear model
-lin.mod<-linear_model_caret(groundstations = inputdata,
-                            formula=formula(paste0("Tint ~ ",names(spdf_aux)[1],"+",
-                                                   names(spdf_aux)[2],"+",
-                                                   names(spdf_aux)[3],"+",
-                                                   names(spdf_aux)[4],"+",
-                                                   names(spdf_aux)[5],"+",
-                                                   names(spdf_aux)[6],"+",
-                                                   names(spdf_aux)[7],"+",
-                                                   names(spdf_aux)[8])),
-                            variable="Tg",
-                            grid_prediction=spdf_aux,
-                            method.overlay = 'extract'
-)
-
-lin.mod$statistical_summary$datum<-datum
-writeRaster(lin.mod$spatial,paste0("/nobackup/users/dirksen/data/Temperature/Aux_results/linear_mod/Predictions/temperature_lm_pca_harmonie",datum,".grd"),overwrite=TRUE)
-
-saveRDS(lin.mod$model,paste0("/nobackup/users/dirksen/data/Temperature/Aux_results/linear_mod/Model/model_",datum,".rds"))
-#
-write.table(lin.mod$statistical_summary,paste0(main_save_path,"lm_statistical_summary.txt"),
-            row.names=FALSE,col.names = !file.exists(paste0(main_save_path,"lm_statistical_summary.txt")),
-            append = TRUE,sep=",")
+# writeRaster(cubist.mod$spatial,paste0(main_save_path,"Cubist_mod/Predictions/temperature_lm_pca_harmonie",datum,".grd"),overwrite=TRUE)
+# 
+# saveRDS(cubist.mod$model,paste0(main_save_path,"Cubist_mod/Model/model_",datum,".rds"))
+# 
+# write.table(cubist.mod$statistical_summary,paste0(main_save_path,"cubist_statistical_summary.txt"),
+#             row.names=FALSE,col.names = !file.exists(paste0(main_save_path,"cubist_statistical_summary.txt")),
+#             append = TRUE,sep=",")
+# # 
+# # #svmRadial model
+# svmRadial.mod<-svmRadial_model_caret(groundstations = inputdata,
+#                                   formula=formula(paste0("Tint ~ ",names(spdf_aux)[1],"+",
+#                                                          names(spdf_aux)[2],"+",
+#                                                          names(spdf_aux)[3],"+",
+#                                                          names(spdf_aux)[4],"+",
+#                                                          names(spdf_aux)[5],"+",
+#                                                          names(spdf_aux)[6],"+",
+#                                                          names(spdf_aux)[7],"+",
+#                                                          names(spdf_aux)[8])),
+#                                   variable="Tg",
+#                                   grid_prediction=spdf_aux,
+#                                   method.overlay = 'extract'
+# )
+# 
+# svmRadial.mod$statistical_summary$datum<-datum
+# writeRaster(svmRadial.mod$spatial,paste0(main_save_path,"SVM_radial_mod/Predictions/temperature_lm_pca_harmonie",
+#                                          datum,".grd"),overwrite=TRUE)
+# 
+# saveRDS(svmRadial.mod$model,paste0(main_save_path,"SVM_radial_mod/Model/model_",
+#                                    datum,".rds"))
+# 
+# write.table(svmRadial.mod$statistical_summary,paste0(main_save_path,"svmRadial_statistical_summary.txt"),
+#             row.names=FALSE,col.names = !file.exists(paste0(main_save_path,"svmRadial_statistical_summary.txt")),
+#             append = TRUE,sep=",")
+# # 
+# # #linear model
+# lin.mod<-linear_model_caret(groundstations = inputdata,
+#                             formula=formula(paste0("Tint ~ ",names(spdf_aux)[1],"+",
+#                                                    names(spdf_aux)[2],"+",
+#                                                    names(spdf_aux)[3],"+",
+#                                                    names(spdf_aux)[4],"+",
+#                                                    names(spdf_aux)[5],"+",
+#                                                    names(spdf_aux)[6],"+",
+#                                                    names(spdf_aux)[7],"+",
+#                                                    names(spdf_aux)[8])),
+#                             variable="Tg",
+#                             grid_prediction=spdf_aux,
+#                             method.overlay = 'extract'
+# )
+# 
+# lin.mod$statistical_summary$datum<-datum
+# writeRaster(lin.mod$spatial,paste0("/nobackup/users/dirksen/data/Temperature/Aux_results/linear_mod/Predictions/temperature_lm_pca_harmonie",datum,".grd"),overwrite=TRUE)
+# 
+# saveRDS(lin.mod$model,paste0("/nobackup/users/dirksen/data/Temperature/Aux_results/linear_mod/Model/model_",datum,".rds"))
+# #
+# write.table(lin.mod$statistical_summary,paste0(main_save_path,"lm_statistical_summary.txt"),
+#             row.names=FALSE,col.names = !file.exists(paste0(main_save_path,"lm_statistical_summary.txt")),
+#             append = TRUE,sep=",")
 # 
 # if(nrow(inputdata)>9){
 # #Kriging with auxcillary data
@@ -172,24 +172,24 @@ write.table(lin.mod$statistical_summary,paste0(main_save_path,"lm_statistical_su
   #             row.names=FALSE,col.names = !file.exists("/nobackup/users/dirksen/data/Temperature/Aux_results/ked_statistical_summary_pred.txt"),
   #             append = TRUE,sep=",")
 # 
-# #Ordinary Kriging
-# out.ok<-interpolation_ordinarykriging(groundstations = inputdata,
-#                                         variable="Tg",
-#                                         grid_drift=spdf_aux[1]
-#                                          )
-# out.ok$statistical_summary_cv$datum<-datum
-# 
+#Ordinary Kriging
+out.ok<-interpolation_ordinarykriging(groundstations = inputdata,
+                                        variable="Tg",
+                                        grid_drift=spdf_aux[1]
+                                         )
+out.ok$statistical_summary_cv$datum<-datum
+
 # r<-raster(out.ok$spatial)
 # writeRaster(r,paste0("/nobackup/users/dirksen/data/Temperature/Aux_results/ok_model/prediction/temperature_kriging_pca_harmonie",datum,".grd"),overwrite=TRUE)
-# # write.csv(out.ok$cv$krige.cv_output,
-# #           paste0("/nobackup/users/dirksen/data/Temperature/Aux_results/ok_model/cv/crossval_",datum,".txt"),
-# #           row.names = FALSE)
-# # write.table(out.ok$statistical_summary_cv,"/nobackup/users/dirksen/data/Temperature/Aux_results/ok_statistical_summary_cv.txt",
-# #             row.names=FALSE,col.names = !file.exists("/nobackup/users/dirksen/data/Temperature/Aux_results/ok_statistical_summary_cv.txt"),
-# #             append = TRUE,sep=",")
-# # write.table(out.ok$statistical_summary_pred,"/nobackup/users/dirksen/data/Temperature/Aux_results/ok_statistical_summary_pred.txt",
-# #             row.names=FALSE,col.names = !file.exists("/nobackup/users/dirksen/data/Temperature/Aux_results/ok_statistical_summary_pred.txt"),
-# #             append = TRUE,sep=",")
+write.csv(out.ok$cv$krige.cv_output,
+          paste0("/nobackup/users/dirksen/data/Temperature/Aux_results/ok_model/cv/crossval_",datum,".txt"),
+          row.names = FALSE)
+write.table(out.ok$statistical_summary_cv,"/nobackup/users/dirksen/data/Temperature/Aux_results/ok_statistical_summary_cv.txt",
+            row.names=FALSE,col.names = !file.exists("/nobackup/users/dirksen/data/Temperature/Aux_results/ok_statistical_summary_cv.txt"),
+            append = TRUE,sep=",")
+write.table(out.ok$statistical_summary_pred,"/nobackup/users/dirksen/data/Temperature/Aux_results/ok_statistical_summary_pred.txt",
+            row.names=FALSE,col.names = !file.exists("/nobackup/users/dirksen/data/Temperature/Aux_results/ok_statistical_summary_pred.txt"),
+            append = TRUE,sep=",")
 # } else print("no fit for kriging, only linear model output")
 # 
 # } else print("less than 4 stations")

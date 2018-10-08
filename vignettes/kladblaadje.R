@@ -42,6 +42,31 @@ plot_climatology(list.of.files = st,
                  layout=c(2,2))
 dev.off()
 
+###############################################
+##########differences between the ok and  lm
+###############################################
+ok<-raster("/nobackup/users/dirksen/data/Temperature/climatology/ok.grd")
+lm<-raster("/nobackup/users/dirksen/data/Temperature/climatology/linear.grd")
+Q10<-stack("/nobackup/users/dirksen/data/Temperature/climatology/quantiles/Q10.grd")
+Q90<-stack("/nobackup/users/dirksen/data/Temperature/climatology/quantiles/Q90.grd")
+Tg_diff<-lm-ok
+T90_diff<-Q90$lm-Q90$ok
+T10_diff<-Q10$lm-Q10$ok
+
+st<-stack(Tg_diff,T10_diff,T90_diff)
+
+png("/nobackup/users/dirksen/data/Temperature/fig/diff_ok_lm.png",width=2100,height=1000,res=300)
+levelplot(st,
+             at=seq(-2,2,length=30),
+             col.regions=colorRampPalette(c("blue","white","red")),
+             names.attr=c("Mean","Q10","Q90"),
+             scales=list(draw=FALSE),
+             layout=c(3,1))
+dev.off()
+###############################################
+###############################################
+###############################################
+
 # png("/nobackup/users/dirksen/data/Temperature/fig/pca2.png",width=2500,height=2000,res=300)
 plot_climatology(list.of.files = pca.list,
                  names.attr = c("(a) ked f1","(b) ked f2" ,"(c) ked f3", "(d) lm f1", "(e) lm f2", "(f) lm f3"),
@@ -248,6 +273,87 @@ tables_paper<-function(statistical_summary){
 
 tables_paper(stat)
 
+#Quantiles mean error, selected on the de Bilt 
+library(dplyr)
+stat<-load_statistical_summary(results.aux = results.aux)
+
+data("temperature_climate")
+bilt<-temperature_climate[which(temperature_climate$STN=="260"),]
+bilt<-bilt[which(bilt$Datum>as.Date("1990-01-01")),]
+bilt<-select(bilt,Tg,Datum)
+
+
+ok<-select(stat[[1]],MAE,datum)
+names(ok)<-"ok"
+df<-lapply(stat[2:4],function(x) select(x,MAE))
+# names(df[[1]])<-"lm"
+# names(df[[2]])<-"cubist"
+# names(df[[3]])<-"svm"
+
+df<-do.call("cbind",df)
+df<-cbind(df,ok)
+names(df)<-c("lm","cubist","svm","ok","Datum")
+df$Datum<-as.Date(df$Datum)
+df<-merge(df,bilt)
+
+round_df <- function(x, digits) {
+  # round all numeric variables
+  # x: data frame 
+  # digits: number of digits to round
+  numeric_columns <- sapply(x, mode) == 'numeric'
+  x[numeric_columns] <-  round(x[numeric_columns], digits)
+  x
+}
+
+df<-data.frame(df)
+df<-df %>% mutate(quantile = ntile(Tg,5))
+
+ok<-df %>% group_by(.dots=c("quantile")) %>% do(data.frame(t(mean(.$ok,na.rm=TRUE))))
+lm<-df %>% group_by_(.dots=c("quantile")) %>% do(data.frame(t(mean(.$lm))))
+lm.min<-df %>% group_by_(.dots=c("quantile")) %>% do(data.frame(t(min(.$Tg))))
+lm.max<-df %>% group_by_(.dots=c("quantile")) %>% do(data.frame(t(max(.$Tg))))
+cubist<-df %>% group_by_(.dots=c("quantile")) %>% do(data.frame(t(mean(.$cubist))))
+svm<-df %>% group_by_(.dots=c("quantile")) %>% do(data.frame(t(mean(.$svm))))
+
+df.quants<-list(lm.min,lm.max,ok,lm,cubist,svm)
+df.quants<-lapply(df.quants,data.frame)
+df.quants<-Reduce(function(x,y) merge(x,y),df.quants)
+names(df.quants)<-c("Tmin","Tmax","ok","lm","cubist","Q","svm")
+setcolorder(df.quants,c("Q","Tmin","Tmax","ok","lm","cubist","svm"))
+
+df.quants<-data.frame(df.quants)
+df.quants.round<-round_df(df.quants,2)
+
+write.table(df.quants.round,
+            file = "/nobackup/users/dirksen/data/Temperature/Results/quant5_AWS.txt",
+            sep = ",",
+            row.names = FALSE,
+            col.names = TRUE) 
+
+#plot mean absolute error 
+ok<-select(stat[[1]],MAE)
+names(ok)<-"ok"
+df<-lapply(stat[2:4],function(x) select(x,MAE))
+# names(df[[1]])<-"lm"
+# names(df[[2]])<-"cubist"
+# names(df[[3]])<-"svm"
+
+df<-do.call("cbind",df)
+df<-cbind(df,ok)
+names(df)<-c("lm","cubist","svm","ok")
+setcolorder(df,c("ok","lm","cubist","svm"))
+
+df<-stack(df)
+df_meds<-ddply(df, .(ind),summarise,med=round(median(values,na.rm = TRUE),2))
+
+p<-ggplot(df,aes(x= ind, y=values)) +
+  geom_boxplot(fill = "skyblue2", colour= "#1F3552") + #, outlier.size=-1
+  scale_y_continuous(name = "MAE", limits = c(0.15,3.35)) +
+  scale_x_discrete(name = "model") +
+  theme_bw() +
+  geom_text(data = df_meds, aes(x = ind, y = med, label = med),size = 2.5, vjust = -0.6)
+
+ggsave(p,filename = "/nobackup/users/dirksen/data/Temperature/fig/MAE_val.png")
 
 ############################           OLD CODE           #####################################
 ###############################################################################################
@@ -416,6 +522,15 @@ names(st_sub)<-c("DTR","Population","Height","Albedo","Insolation","Roughness","
 correlations<-layerStats(st_sub,'pearson',na.rm = TRUE)
 corr_matrix=correlations$'pearson correlation coefficient'
 
+library(ggplot2)
+library(ggcorrplot)
+p<-ggcorrplot(corr_matrix,type="upper",
+              hc.order = TRUE,
+              ggtheme = ggplot2::theme_gray,
+              lab=TRUE)
+ggsave(p,filename="/usr/people/dirksen/Pictures/corrplot.png",width=9,height=7)
+
+
 library(corrplot)
 col <- colorRampPalette(c("#BB4444", "#EE9988", "#FFFFFF", "#77AADD", "#4477AA"))
 
@@ -523,46 +638,46 @@ names(st.aux)<-c("Distance to the sea",
                   "Population Density", #year 2014
                   "Height", 
                   "Albedo", 
-                  "Insulation", #climatology SARAH
+                  "Insolation", #climatology SARAH
                   "Roughness", # summer roughness as example
                   "Precipitation",
                   "Vegetation Index")
 
-pca<-readRDS(cfg$pca_harmonie_mask)
-st.pca<-pca$map
+# pca<-readRDS(cfg$pca_harmonie_mask)
+# st.pca<-pca$map
+# 
+# crs(st.pca)<-crs(st.aux)
+# st.aux<-crop(st.aux,st.pca)
 
-crs(st.pca)<-crs(st.aux)
-st.aux<-crop(st.aux,st.pca)
+# z<-stack(st.aux,st.pca)
+correlations<-layerStats(st.aux,'pearson',na.rm = TRUE)
+useful_corr=correlations$'pearson correlation coefficient'
+# useful_corr<-corr_matrix[9:15,1:8]
 
-z<-stack(st.aux,st.pca)
-correlations<-layerStats(z,'pearson',na.rm = TRUE)
-corr_matrix=correlations$'pearson correlation coefficient'
-useful_corr<-corr_matrix[9:15,1:8]
 
-useful_corr_abs<-abs(useful_corr)
-pca_importance_aux<-rowSums(useful_corr_abs)
-pca_scaled_varimp<-pca_importance_aux/sum(pca_importance_aux)*93
+# useful_corr_abs<-abs(useful_corr)
+# pca_importance_aux<-rowSums(useful_corr_abs)
+# pca_scaled_varimp<-pca_importance_aux/sum(pca_importance_aux)*93
   
-library(corrplot)
-col <- colorRampPalette(c("#BB4444", "#EE9988", "#FFFFFF", "#77AADD", "#4477AA"))
-
-png(filename = "/usr/people/dirksen/reports/DailyTemperaturePatternsSince1951/fig/corr_matrix.png",
-    width = 1700,
-    height = 2000,
-    res=300)
-corrplot(useful_corr,
-         p.mat = useful_corr, 
-         pch="p<0.05",
-         pch.cex = 0.1,
-         pch.col="black",
-         insig = "p-value", 
-         sig.level = -1,
-         method="color",
-         tl.col = "black",
-         tl.cex = 1,
-         col = col(200),
-         number.cex=1)
-dev.off()
+# library(corrplot)
+# col <- colorRampPalette(c("#BB4444", "#EE9988", "#FFFFFF", "#77AADD", "#4477AA"))
+# png(filename = "/usr/people/dirksen/reports/DailyTemperaturePatternsSince1951/fig/corr_matrix.png",
+#     width = 1700,
+#     height = 2000,
+#     res=300)
+# corrplot(useful_corr,
+#          p.mat = useful_corr, 
+#          pch="p<0.05",
+#          pch.cex = 0.1,
+#          pch.col="black",
+#          insig = "p-value", 
+#          sig.level = -1,
+#          method="color",
+#          tl.col = "black",
+#          tl.cex = 1,
+#          col = col(200),
+#          number.cex=1)
+# dev.off()
 
 
 ###########SELECTING PCs
@@ -607,3 +722,74 @@ ggplot(pca.sub,aes(nr,POV))+
   annotate("text", 3,4,label="acceleration factor") +
   geom_vline(xintercept = 7,linetype="dotted") +
   annotate("text", 8,10,label="optimal coordinate\n &\n parallel analysis")
+
+#GGD data Amsterdam
+# rawdata<-readBin("/nobackup/users/dirksen/data/GGD_temperature_ams/temperaturen/Temp outdoor uur 2005 2007.CSV",raw(),
+#                  file.info("/nobackup/users/dirksen/data/GGD_temperature_ams/temperaturen/Temp outdoor uur 2005 2007.CSV")$size)
+# rawdata[rawdata==as.raw(0)] = as.raw(0x20)
+# writeBin(rawdata,"/nobackup/users/dirksen/data/GGD_temperature_ams/temperaturen/test.txt")
+# 
+# df<-fread("/nobackup/users/dirksen/data/GGD_temperature_ams/temperaturen/test.txt",skip=1)
+# df<-subset(df,select=c("Dates","014OVT - 014 PM10 TEOM Temp degre"))
+
+############mapping the awss, wunderground and amsterdam data
+library(data.table)
+library(mapview)
+library(dplyr)
+library(rgdal)
+library(raster)
+data("temperature_climate")
+data("coords_aws")
+
+coords_aws<-inner_join(coords_aws,temperature_climate[which(temperature_climate$Datum=="2000-01-01"),])
+wunderground<-fread("/nobackup/users/dirksen/data/wunderground/wunderground_paper.csv")
+ggd<-fread("/nobackup/users/dirksen/data/GGD_temperature_ams/metadata_GGD_Amsterdam.txt")
+
+aws<-subset(coords_aws,select=c("DS_LON","DS_LAT"))
+names(aws)<-c("lon","lat")
+aws$type<-"AWS"
+coordinates(aws)<-~lon+lat
+crs(aws)<-CRS("+proj=sterea +lat_0=52.15616055555555 +lon_0=5.38763888888889 +k=0.9999079 +x_0=155000 +y_0=463000 +ellps=bessel +units=m +no_defs")
+
+ggd<-subset(ggd,select=c("RD_x","RD_y"))
+names(ggd)<-c("lon","lat")
+ggd$type<-"GGD"
+coordinates(ggd)<-~lon+lat
+crs(ggd)<-CRS("+proj=sterea +lat_0=52.15616055555555 +lon_0=5.38763888888889 +k=0.9999079 +x_0=155000 +y_0=463000 +ellps=bessel +units=m +no_defs")
+
+wunderground<-subset(wunderground,select=c("lat","lon"))
+wunderground$type<-"wunderground"
+coordinates(wunderground)<-~lon+lat
+crs(wunderground)<-CRS("+init=epsg:4326")
+wunderground<-spTransform(wunderground,crs(ggd))
+
+veenkampen<-readRDS("/nobackup/users/dirksen/data/Veenkampen/veenkampen_meta.rds")
+veenkampen$type<-"WUR"
+veenkampen<-data.frame("lat"=veenkampen$Latitude,"lon"=veenkampen$Longitude,"type"=veenkampen$type)
+coordinates(veenkampen)<-~lon+lat
+crs(veenkampen)<-CRS("+init=epsg:4326")
+veenkampen<-spTransform(veenkampen,crs(ggd))
+
+df.sp<-rbind(data.frame(aws),data.frame(ggd),data.frame(wunderground),data.frame(veenkampen))
+coordinates(df.sp)<-~lon+lat
+crs(df.sp)<-CRS("+proj=sterea +lat_0=52.15616055555555 +lon_0=5.38763888888889 +k=0.9999079 +x_0=155000 +y_0=463000 +ellps=bessel +units=m +no_defs")
+
+
+
+m<-mapview(df.sp,zcol="type",legend=TRUE,layer.name="Network") 
+m@map %>% setView(5.4,52.4,zoom = 7)
+mapshot(m,file="/usr/people/dirksen/Pictures/obs.png")
+
+points<-data.frame(spTransform(df.sp,CRS("+init=epsg:4326")))
+library(ggmap)
+library(ggplot2)
+library(ggsn)
+
+world<-map_data("world2")
+ggm1<-ggplot(data=points,aes(x=lon,y=lat,colour=factor(type))) + 
+  theme_bw() +
+  theme(legend.title=element_blank()) +
+  theme(legend.justification=c(1,0), legend.position=c(1,0)) +
+  geom_polygon(data=world,aes(long,lat,group=group),fill=NA,color="black") + 
+  geom_point() + 
+  coord_quickmap(xlim=c(min(points$lon)-0.35,max(points$lon))+0.2,ylim=c(min(points$lat)-0.1,max(points$lat))) 

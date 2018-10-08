@@ -1,6 +1,7 @@
 exportPattern("^[[:alpha:]]+")
 importFrom("automap","autoKrige")
 importFrom("caret","train","trainControl")
+importFrom("ModelMetrics","mae")
 importFrom("data.table","fread")
 importFrom("fields","Tps")
 importFrom("gstat","krige","krige.cv","idw","vgm","fit.variogram","variogram")

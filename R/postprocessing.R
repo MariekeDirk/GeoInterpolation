@@ -77,8 +77,6 @@ calc_save_climatology <- function(path.to.file , file.to.write){
 #'@param layout how should the plots be ordered?
 #'@author Marieke Dirksen
 #'@export
-#'
-#'
 plot_climatology <- function(list.of.files,
                              names.attr,
                              layout,
@@ -116,7 +114,7 @@ load_statistical_summary<-function(results.aux = results.aux, results.pca = resu
   requireNamespace("data.table", quietly = TRUE)
   #Auxiliary data results statistical summary
   ok.cv<-fread(paste0(results.aux,"ok_statistical_summary_cv.txt"))
-  names(ok.cv)<-c("R2.cv"  ,   "RMSE.cv"  , "RMSEsd.cv", "ME.cv"   ,  "MEmean.cv","datum")
+  names(ok.cv)<-c("R2.cv"  ,   "RMSE.cv"  , "RMSEsd.cv", "ME.cv"   ,  "MEmean.cv","MAE","datum")
   ok.pred<-fread(paste0(results.aux,"ok_statistical_summary_pred.txt"))
   ok<-data.frame(ok.pred,ok.cv)
 

@@ -20,8 +20,8 @@
 #' lapply(stations,download_time_seq)
 #' @export
 download_time_seq<-function(stationname = "IZUIDHOL87",
-                            start = as.Date("2013/03/01"),
-                            stop = as.Date("2018/05/01"),
+                            start = as.Date("2015/03/01"),
+                            stop = as.Date("2018/10/01"),
                             var = "TemperatureC",
                             folder.loc = "/nobackup/users/dirksen/data/wunderground/"){
 
@@ -30,6 +30,7 @@ requireNamespace("data.table")
 
 if (dir.exists(paste0(folder.loc,"/",stationname))) {
   message(paste0("Already a directory for available for ",stationname))
+  return(TRUE)
 } else {
 message(paste0("Creating a new directory for ",stationname))
 dir.create(paste0(folder.loc,"/",stationname)) # maakt nieuw mapje voor het station waar een textfile per dag in komt
