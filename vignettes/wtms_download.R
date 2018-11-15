@@ -10,7 +10,8 @@ ogr2ogr(bgt_wfs, "bgt.shp", "bgt:pand")
 
 #plot BGT
 bgt <- readOGR("bgt.shp", "bgt", stringsAsFactors=FALSE)
-plot(bgt, max.plot = 19)
+
+extent(bgt)<-c(-285401.92,595401.92,22598.08,903401.92)
 
 #bbox around the coordinates from the Bilt
 library(raster)

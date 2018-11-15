@@ -4,8 +4,8 @@
 \alias{interpolation_idw}
 \title{IDW interpolation}
 \usage{
-interpolation_idw(groundstations, variable, distshore.grd, mxdidw = 120000,
-  blocksize = 20000)
+interpolation_idw(groundstations, variable, distshore.grd,
+  mxdidw = 120000, blocksize = 20000)
 }
 \arguments{
 \item{groundstations}{Data from the ground station in spatial format without na values}

@@ -4,8 +4,9 @@
 \alias{download_time_seq}
 \title{Wunderground time series from URL}
 \usage{
-download_time_seq(stationname = "IZUIDHOL87", start = as.Date("2013/03/01"),
-  stop = as.Date("2018/05/01"), var = "TemperatureC",
+download_time_seq(stationname = "IZUIDHOL87",
+  start = as.Date("2015/03/01"), stop = as.Date("2018/10/01"),
+  var = "TemperatureC",
   folder.loc = "/nobackup/users/dirksen/data/wunderground/")
 }
 \arguments{

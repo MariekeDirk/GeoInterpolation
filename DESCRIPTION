@@ -21,7 +21,6 @@ Imports: automap,
          ncdf4,
          raster,
          rasterVis,
-         rhdf5,
          sp,
          spam,
          spatialEco,
@@ -31,5 +30,5 @@ Suggests: leaflet,
           knitr,
           rmarkdown
 Depends: R (>= 2.10)
-RoxygenNote: 6.0.1
+RoxygenNote: 6.1.1
 VignetteBuilder: knitr

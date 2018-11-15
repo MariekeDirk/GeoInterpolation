@@ -51,3 +51,15 @@ df$lon_dms<-measurements::conv_unit(df$lon,from = "dec_deg",to="deg_min_sec")
 
 write.table(df,"/usr/people/dirksen/Documents/coords_ine_dms.txt",sep=",",row.names=FALSE,col.names = TRUE)
 mapview(df)
+
+library(data.table)
+library(ggplot2)
+df<-fread("/usr/people/dirksen/Documents/ss.txt",colClasses = rep("numeric",3))
+df<-df[1:(length(df$Year)-1),]
+
+df<-df %>% gather(df,key=measurement,qq,ss)
+
+ggplot(data=df,aes(x=Year,y=df,colour=measurement)) + 
+  geom_point() + geom_line() + theme_bw() +
+  theme(legend.position=c(0.2,0.8)) + ylab("count")
+

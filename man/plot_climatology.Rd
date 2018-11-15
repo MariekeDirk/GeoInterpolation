@@ -4,8 +4,8 @@
 \alias{plot_climatology}
 \title{plot climatology}
 \usage{
-plot_climatology(list.of.files, names.attr, layout, at = seq(9.5, 12.3, length
-  = 30))
+plot_climatology(list.of.files, names.attr, layout, at = seq(9.5, 12.3,
+  length = 30))
 }
 \arguments{
 \item{list.of.files}{climatologies (grd)}

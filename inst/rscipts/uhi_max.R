@@ -114,32 +114,19 @@ calc_U<-function(time,wind){
 library(raster)
 library(rgdal)
 library(mapview)
-
+# neighbourhood<-readOGR(dsn="/nobackup/users/dirksen/data/auxcillary_NED/Buurtenkaart2018/",layer="buurt2018")
 # district<-readOGR(dsn="/nobackup/users/dirksen/data/auxcillary_NED/Buurtenkaart2018/",layer="wijk_2018")
-# municipality<-readOGR(dsn="/nobackup/users/dirksen/data/auxcillary_NED/Buurtenkaart2018/",layer="gem_2018")
-# Utrecht<-municipality[which(municipality$GM_NAAM=="Utrecht"),]
-# Utrecht_district<-district[which(district$GM_NAAM=="Utrecht"),]
 ############################Layer information SVF and Greenness within district Utrecht
-neighbourhood<-readOGR(dsn="/nobackup/users/dirksen/data/auxcillary_NED/Buurtenkaart2018/",layer="buurt2018")
-Utrecht_neighbourhood<-neighbourhood[which(neighbourhood$GM_NAAM=="Utrecht"),]
-#selecting neighbourhoods with a population density of at least 500 adresses per km2
-Utrecht_center<-Utrecht_neighbourhood[which(as.numeric(Utrecht_neighbourhood$STED)<=4),] 
+municipality<-readOGR(dsn="/nobackup/users/dirksen/data/auxcillary_NED/Buurtenkaart2018/",layer="gem_2018")
+Utrecht<-municipality[which(municipality$GM_NAAM=="Utrecht"),]
 
+greenness<-stack("/nobackup/users/dirksen/data/auxcillary_NED/rivm_20170415_g_groenkaart_10m/rivm_20170415_g_groenkaart_10m.tif")
+Utrecht<-spTransform(Utrecht,crs(greenness))
 
-greenness<-raster("/nobackup/users/dirksen/data/auxcillary_NED/rivm_20170415_g_groenkaart_10m/rivm_20170415_g_groenkaart_10m.tif")
+greenness.u<-crop(greenness,extent(Utrecht))
+greenness.u<-mask(greenness.u,Utrecht)
 
-Utrecht<-spTransform(Utrecht_center,crs(greenness))
- 
-# greenness.u<-crop(greenness,extent(Utrecht)+1000)
-# greenness.u<-mask(greenness.u,buffer(Utrecht,500))
-# greenness.u<-greenness.u/100
-# 
-# fw<-focalWeight(greenness.u,500,type="circle") #create a circular buffer of 500m
-# greenness.u.smooth<-focal(greenness.u,w=fw,fun=sum,na.rm=TRUE) #calculate the mean for the buffer matrix
-# greenness.u.smooth<-mask(greenness.u.smooth,Utrecht)
-# saveRDS(greenness.u.smooth,"inst/Rdata/greenness_Utrecht_500m.rds")
-greenness.u.smooth<-readRDS("inst/Rdata/greenness_Utrecht_500m.rds")
-# mapview(Utrecht) + greenness.u
+mapview(Utrecht) + greenness.u
 #############################Point information Utrecht
 library(data.table)
 df<-fread("/nobackup/users/dirksen/data/wunderground/svf_temperature_relevant_stations/meta_data.txt")
@@ -148,11 +135,11 @@ crs(df)<-CRS("+proj=longlat +datum=WGS84")
 df<-spTransform(df,crs(Utrecht))
 
 df.in.poly<-df[!is.na(over(df,Utrecht))[,1],]
-# df.utrecht<-data.frame(df.in.poly)
-df.in.poly$exist<-unlist(lapply(df.in.poly$`Station ID`,function(x) dir.exists(paste0("/nobackup/users/dirksen/data/wunderground/svf_temperature_relevant_stations/UHImax_Utrecht/",x))))
-df.in.poly<-df.in.poly[df.in.poly$exist,] #only select stations for which we do have data
+df.utrecht<-data.frame(df.in.poly)
+df.utrecht$exists<-unlist(lapply(df.utrecht$Station.ID,function(x) dir.exists(paste0("/nobackup/users/dirksen/data/wunderground/svf_temperature_relevant_stations/UHImax_Utrecht/",x))))
+df.utrecht<-df.utrecht[df.utrecht$exists,] #only select stations for which we do have data
 
-mapview(greenness.u.smooth)  + df.in.poly
+mapview(Utrecht) + greenness.u + df.in.poly
 
 
 #############################Information from the rural station

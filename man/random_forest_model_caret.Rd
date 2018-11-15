@@ -4,8 +4,8 @@
 \alias{random_forest_model_caret}
 \title{Random Forest model Caret}
 \usage{
-random_forest_model_caret(groundstations, method.overlay = "extract", formula,
-  variable, grid_prediction, length = 20, method = "rf")
+random_forest_model_caret(groundstations, method.overlay = "extract",
+  formula, variable, grid_prediction, length = 20, method = "rf")
 }
 \arguments{
 \item{groundstations}{Data from the ground station in spatial format without na values}

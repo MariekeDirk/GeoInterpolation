@@ -4,8 +4,8 @@
 \alias{calculate_time_average_raster}
 \title{Calculate time averages from raster}
 \usage{
-calculate_time_average_raster(raster.path, ext = extent(-11.5, 15.1, 45.8,
-  61.1), time.format, time.period)
+calculate_time_average_raster(raster.path, ext = extent(-11.5, 15.1,
+  45.8, 61.1), time.format, time.period)
 }
 \arguments{
 \item{raster.path}{is the full path to the raster file with a pattern ".grd".}

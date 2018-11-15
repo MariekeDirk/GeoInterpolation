@@ -4,8 +4,9 @@
 \alias{svmRadial_model_caret}
 \title{Support Vector Machine model Caret}
 \usage{
-svmRadial_model_caret(groundstations, method.overlay = "extract", formula,
-  variable, grid_prediction, length = 20, method = "svmRadial")
+svmRadial_model_caret(groundstations, method.overlay = "extract",
+  formula, variable, grid_prediction, length = 20,
+  method = "svmRadial")
 }
 \arguments{
 \item{groundstations}{Data from the ground station in spatial format without na values}

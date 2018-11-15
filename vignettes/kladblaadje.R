@@ -64,9 +64,24 @@ levelplot(st,
              layout=c(3,1))
 dev.off()
 ###############################################
+##############Correlation lm Q10 Q90 with aux
 ###############################################
-###############################################
+library(ggplot2)
+library(ggcorrplot)
 
+aux<-stack("/nobackup/users/dirksen/data/auxcillary_NED/auxcillary_stacks/aux_paper.grd")
+names(lm)<-"lm mean"
+names(Q10[[1]])<-"lm Q10"
+names(Q90[[1]])<-"lm Q90"
+st.corr<-stack(lm,Q10[[1]],Q90[[1]],aux)
+correlations<-layerStats(st.corr,'pearson',na.rm = TRUE)
+corr_matrix=correlations$'pearson correlation coefficient'
+
+corr_aux<-ggcorrplot(corr_matrix[4:11,1:3], type="full",
+              ggtheme = ggplot2::theme_gray,
+              lab=TRUE)
+ggsave(corr_aux,filename = "/usr/people/dirksen/Pictures/Temperature/pred_aux.png")
+# corrplot(corr_matrix[4:11,1:3, drop=FALSE], cl.pos='n')
 # png("/nobackup/users/dirksen/data/Temperature/fig/pca2.png",width=2500,height=2000,res=300)
 plot_climatology(list.of.files = pca.list,
                  names.attr = c("(a) ked f1","(b) ked f2" ,"(c) ked f3", "(d) lm f1", "(e) lm f2", "(f) lm f3"),
@@ -500,6 +515,9 @@ st_aux<-scale(st_aux)
 I<-c(36,16,17,18,19,20,34,35)
 library(rasterVis)
 
+st_paper<-st_aux[[I]]
+names(st_paper)<-c("DTR","Population Density","Height","Albedo","Insolation","Roughness","Precipitation","NDVI")
+# writeRaster(st_paper,"/nobackup/users/dirksen/data/auxcillary_NED/auxcillary_stacks/aux_paper.grd",overwrite=TRUE)
 levelplot(st_aux[[I]],
           layout=c(4,2),
           scales=list(draw=FALSE ),
@@ -735,6 +753,7 @@ ggplot(pca.sub,aes(nr,POV))+
 ############mapping the awss, wunderground and amsterdam data
 library(data.table)
 library(mapview)
+library(leaflet)
 library(dplyr)
 library(rgdal)
 library(raster)
@@ -786,10 +805,14 @@ library(ggplot2)
 library(ggsn)
 
 world<-map_data("world2")
-ggm1<-ggplot(data=points,aes(x=lon,y=lat,colour=factor(type))) + 
+ggm1<-
+  ggplot(data=points,aes(x=lon,y=lat,colour=factor(type))) + 
   theme_bw() +
+  north(x.min = 3.8, x.max = 7, y.min = 50.5, y.max = 53.5,location = "topleft",symbol = 3) +
+  # scalebar(x.min = 3.8, x.max = 7, y.min = 51, y.max = 53.5, dist = 15, dd2km = TRUE, model = 'WGS84',location = "bottomleft") +
   theme(legend.title=element_blank()) +
   theme(legend.justification=c(1,0), legend.position=c(1,0)) +
   geom_polygon(data=world,aes(long,lat,group=group),fill=NA,color="black") + 
   geom_point() + 
   coord_quickmap(xlim=c(min(points$lon)-0.35,max(points$lon))+0.2,ylim=c(min(points$lat)-0.1,max(points$lat))) 
+ggsave(ggm1,filename = "/usr/people/dirksen/Pictures/Temperature/stations.png")
